@@ -1,2 +1,4 @@
 src/*.ipynb
+src/stung/__pycache__/*
 build/
+out/

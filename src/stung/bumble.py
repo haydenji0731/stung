@@ -29,6 +29,35 @@ class Block:
         self.dy = end.y - start.y
         self.diag_len = ((self.dx) ** 2 + (self.dy) ** 2) ** 0.5
         self.area = self.dx * self.dy
+    
+    def __str__(
+        self
+    ):
+        return f'{self.start}\t{self.end}'
+
+def do_connect_greedy(
+    anchor : Block,
+    other : Block,
+    max_ratio : float = 0.5
+):
+    """
+    """
+    dx = anchor.end.x - other.start.x
+    dy = anchor.end.y - other.start.y
+    dx = max(0, dx)
+    dy = max(0, dy)
+    A = dx * dy
+    return A / other.area > max_ratio
+
+def write_blocks2file(
+    blocks : list[Block],
+    out_fp : str
+):
+    """
+    """
+    with open(out_fp, 'w') as fh:
+        for b in blocks:
+            fh.write(f'{str(b)}\n')
 
 # TODO: finish implementation
 class Gene:
@@ -41,7 +70,7 @@ class Bumble:
     def __init__(
         self,
         genome_fp : str,
-        ann_fps : list[str], # TODO: change this to support only 2d
+        ann_fps : list[str],
         temp_dir : str,
         out_dir : str,
         min_pident : float = 90.0,
@@ -49,17 +78,20 @@ class Bumble:
         pad_len : int = 10
     ):
         """
+        TODO
         """
         try:
             self.genome = pyfastx.Fasta(genome_fp)
         except Exception as e:
             raise RuntimeError(f'error opening genome file @ {genome_fp}') from e
+    
+        if len(ann_fps) != 2:
+            raise ValueError(f'exactly two haplotypes supported')
         
-        ctr = 0
         self.hindex = dict()
-        for ann_fp in ann_fps:
-            self.hindex[f'h-{ctr}'] = ann_fp
-            ctr += 1
+        self.hindex['h0'] = ann_fps[0]
+        self.hindex['h1'] = ann_fps[1]
+        self.gene_orders = dict()
         
         os.makedirs(out_dir, exist_ok = True)
         os.makedirs(temp_dir, exist_ok = True)
@@ -78,19 +110,16 @@ class Bumble:
         raises :
         """
 
-        gene_orders = dict()
-
-        for hi, ann_fp in self.hindex.items():
+        for hid, ann_fp in self.hindex.items():
             gene_order = utl.parse_protein_coding_genes(ann_fp)
-            gene_orders[hi] = gene_order
+            self.gene_orders[hid] = gene_order
         
-        # TODO: examine if 
-        x = gene_orders["h-0"]
-        y = gene_orders["h-1"]
+        x = self.gene_orders["h0"]
+        y = self.gene_orders["h1"]
+        n = max(len(x), len(y))
+
         self.x_gorder = x
         self.y_gorder = y
-
-        n = max([len(x) for x in gene_orders.values()])
         mat = np.zeros((n, n), dtype=int)
 
         for i in range(len(x)):
@@ -102,8 +131,16 @@ class Bumble:
                         mat[i][j] = 1.0 # fwd match
                     else:
                         mat[i][j] = 2.0 # rev match
-        return mat
+        return mat, n
+    
+    def extend_2d_matrix(
+        self
+    ):
+        """
+        """
+        return
 
+    
 
 
 

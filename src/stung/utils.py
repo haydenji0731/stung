@@ -1,9 +1,10 @@
 from mjol import gan
 import os
 import plotly.graph_objects as pgo
+import numpy as np
 
 def is_protein_coding(
-    gene : gan.gFeature
+    gene : gan.GFeature
 ) -> bool:
     """
     """
@@ -47,12 +48,27 @@ def parse_protein_coding_genes(
 
 def plot_2d_matrix(
     mat,
-    gene_orders,
-    is_interactive : bool = False,
+    gene_orders : dict,
+    n : int,
+    is_interactive : bool = True,
     save : bool = False
 ):
     """
+    TODO
     """
+
+    if len(gene_orders) == 0:
+        raise ValueError()
+    
+    custom_data = np.empty((n, n), dtype=object)
+    h0 = gene_orders['h0']
+    h1 = gene_orders['h1']
+    for i in range(n):
+        h0_val = None if i >= len(h0) else h0[i][0]
+        for j in range(n):
+            h1_val = None if j >= len(h1) else h1[j][0]
+            custom_data[i][j] = (h0_val, h1_val)
+    
     if is_interactive:
         custom_colorscale = [
             [0.0, "white"],
@@ -62,19 +78,26 @@ def plot_2d_matrix(
             [0.667, "red"],
             [1.0, "red"]
         ]
-
         fig = pgo.Figure(data=pgo.Heatmap(
             z=mat,
             colorscale=custom_colorscale,
-            showscale=False,  # hide colorbar
-            hovertemplate="x: %{x}<br>y: %{y}<br>value: %{z}<extra></extra>",
+            customdata=custom_data,
+            showscale=False,
+            hovertemplate="x: %{customdata[0]}<br>y: %{customdata[1]}<extra></extra>",
         ))
 
         fig.update_layout(
             dragmode='zoom',
-            xaxis=dict(scaleanchor='y'),
+            xaxis=dict(
+                scaleanchor='y',
+                range=[0, n]
+            ),
+            yaxis = dict(
+                range=[0, n]
+            )
         )
 
         fig.show()
     else:
+        # TODO: finish implementation
         raise NotImplementedError
