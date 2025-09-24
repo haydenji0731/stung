@@ -1,18 +1,19 @@
 import numpy as np
 from stung import bumble
 import os
+import copy
 
 def compute_mlen(
     mat,
     n : int
 ):
     diag_mlen_mat = np.zeros((n, n), dtype=int)
-    for i in range(n):
-        for j in range(n):
+    for i in range(n): # row index
+        for j in range(n): # col index
             mlen = 0
-            x, y = i, j
+            y, x = i, j
             while x < n and y < n:
-                if mat[x][y] < 1:
+                if mat[y][x] < 1:
                     break
                 mlen += 1
                 x += 1
@@ -31,17 +32,17 @@ def find_colinear_blocks(
     """
 
     blcks = []
-    for i in range(n):
-        for j in range(n):
+    for i in range(n): # row index
+        for j in range(n): # col indx
             start = None
             end = None
             blen = 0
-            x, y = i, j
+            y, x = i, j
             while x < n and y < n:
-                if mlen_mat[x][y] > 0:
+                if mlen_mat[y][x] > 0: # TODO: is this okay?
                     if not start:
                         start = bumble.Point(x = x, y = y)
-                    mlen_mat[x][y] = 0
+                    mlen_mat[y][x] = 0
                     blen += 1
                 else:
                     if start and blen > 1:
@@ -94,7 +95,6 @@ def collapse_blocks(
         
     return ctr, collapsed
             
-
 def annotate_stungs(
     colin_blocks : list[bumble.Block],
     verbose : bool = False
@@ -129,6 +129,7 @@ def annotate_stungs(
     return stungs
 
 def buzz(
+    bmbl,
     mat,
     n : int,
     out_dir : str,
@@ -140,9 +141,12 @@ def buzz(
     if len(mat) != n:
         raise ValueError()
     
+    init_mat = copy.deepcopy(mat)
+
     diag_mlen_mat = compute_mlen(mat = mat, n = n)
+    
     colin_blocks = find_colinear_blocks(
-        mlen_mat = diag_mlen_mat,
+        mlen_mat = diag_mlen_mat.copy(), # pass a shallow copy to prevent mods from propagating
         n = n,
         verbose = verbose
     )
@@ -155,9 +159,30 @@ def buzz(
 
     bumble.write_blocks2file(colin_blocks, os.path.join(out_dir, 'pre_colin_blcks.tsv'))
     
-    annotate_stungs(
+    stungs = annotate_stungs(
         colin_blocks = colin_blocks,
         verbose = verbose
     )
 
-    return
+    stung_blcks = []
+    for i, stung in enumerate(stungs):
+        xlim, ylim = bmbl.extend_colinear_blocks(
+            mat = mat,
+            n = n,
+            stung = stung,
+            bp_i = i
+        )
+        stung_blck = bumble.Block(
+            start = bumble.Point(
+                x = xlim[0],
+                y = ylim[0]
+            ),
+            end = bumble.Point(
+                x = xlim[1],
+                y = ylim[1]
+            )
+        )
+        stung_blcks.append(stung_blck)
+        break # TODO: remove after testing
+    
+    return init_mat, stungs, stung_blcks

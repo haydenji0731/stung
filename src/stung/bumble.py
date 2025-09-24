@@ -2,6 +2,8 @@ import pyfastx
 import stung.utils as utl
 import os
 import numpy as np
+from tqdm import tqdm
+import subprocess
 
 class Point:
     def __init__(
@@ -33,7 +35,7 @@ class Block:
     def __str__(
         self
     ):
-        return f'{self.start}\t{self.end}'
+        return f'{str(self.start)}\t{str(self.end)}'
 
 def do_connect_greedy(
     anchor : Block,
@@ -59,12 +61,28 @@ def write_blocks2file(
         for b in blocks:
             fh.write(f'{str(b)}\n')
 
-# TODO: finish implementation
 class Gene:
     def __init__(
+        self,
+        name : str,
+        chr : str,
+        start : int,
+        end : int,
+        strand : str
+    ):
+        """
+        TODO
+        """
+        self.name = name
+        self.chr = chr
+        self.start = start
+        self.end = end
+        self.strand = strand
+    
+    def __str__(
         self
     ):
-        raise NotImplementedError
+        return f'{self.name}\t{self.chr}\t{self.start}\t{self.end}\t{self.strand}'
 
 class Bumble:
     def __init__(
@@ -100,6 +118,10 @@ class Bumble:
         self.min_pident = min_pident
         self.min_dlen = min_diag_len
         self.pad_len = pad_len
+
+        self.x_gene_order = None
+        self.y_gene_order = None
+        self.pident_mat = None
     
     def build_2d_matrix(
         self
@@ -112,39 +134,162 @@ class Bumble:
 
         for hid, ann_fp in self.hindex.items():
             gene_order = utl.parse_protein_coding_genes(ann_fp)
-            self.gene_orders[hid] = gene_order
+            self.gene_orders[hid] = [
+                Gene(
+                    name = x[0],
+                    chr = x[1],
+                    start = x[2],
+                    end = x[3],
+                    strand = x[4]
+                ) for x in gene_order
+            ]
         
         x = self.gene_orders["h0"]
         y = self.gene_orders["h1"]
+
+        # write out gene_orders
+        fn = os.path.join(self.out_dir, 'h0_gene_order.csv')
+        with open(fn, 'w') as fh:
+            for i, gene in enumerate(x):
+                fh.write(f'{i},{gene.name}\n')
+        
+        fn = os.path.join(self.out_dir, 'h1_gene_order.csv')
+        with open(fn, 'w') as fh:
+            for i, gene in enumerate(y):
+                fh.write(f'{i},{gene.name}\n')
+
         n = max(len(x), len(y))
 
-        self.x_gorder = x
-        self.y_gorder = y
         mat = np.zeros((n, n), dtype=int)
 
-        for i in range(len(x)):
-            g1, _, _, g1_str = x[i]
-            for j in range(len(y)):
-                g2, _, _, g2_str = y[j]
-                if g1 == g2:
-                    if g1_str == g2_str:
-                        mat[i][j] = 1.0 # fwd match
+        for i in range(len(y)): # h1 on the y-axis
+            g1 = y[i]
+            for j in range(len(x)): # h0 on the x-axis
+                g0 = x[j]
+                if g1.name == g0.name:
+                    if g1.strand == g0.strand:
+                        mat[i][j] = 1.0 # same strand match
                     else:
-                        mat[i][j] = 2.0 # rev match
+                        mat[i][j] = 2.0 # opposite strand match
+        self.x_gene_order = x
+        self.y_gene_order = y
+
         return mat, n
     
-    def extend_2d_matrix(
-        self
-    ):
+    def extend_colinear_blocks(
+        self,
+        mat,
+        n : int,
+        stung : tuple[Point, Point],
+        bp_i : int,
+        pad : int = 10,
+        plt_wd : int = 5,
+        min_pident : float = 90.0
+    ) -> tuple[tuple[int, int]]:
         """
+        TODO
         """
-        return
 
-    
+        if self.pident_mat is None:
+            self.pident_mat= np.zeros((n, n), dtype=float)
 
+        start, end = stung
 
+        xlim = (start.x - pad, end.x + pad)
+        ylim = (start.y - pad, end.y + pad)
 
+        wkdir = os.path.join(self.temp_dir, str(bp_i))
+        cmd = f'mkdir -p {wkdir}'
+        subprocess.call(cmd, shell=True)
 
+        if not self.x_gene_order or not self.y_gene_order:
+            raise ValueError()
+        
+        x = self.x_gene_order
+        y = self.y_gene_order
 
+        utl.plot_2d_matrix(
+            mat = mat[ylim[0]:ylim[1], xlim[0]:xlim[1]],
+            # below three args are not used when is_interactive == False
+            x_gene_order = x[xlim[0]:xlim[1]],
+            y_gene_order = y[ylim[0]:ylim[1]],
+            n = max(xlim[1] - xlim[0], ylim[1] - ylim[0]),
+            dot_s = 50,
+            save = True,
+            is_interactive = False,
+            out_fp = os.path.join(wkdir, f'bp_{bp_i}_pre.png')
+        )
 
+        for i in tqdm(range(ylim[0], ylim[1], 1)): # row index
+            g1 = y[i]
 
+            s1 = get_genomic_seq(
+                genome=self.genome,
+                chr=g1.chr,
+                start=g1.start,
+                end=g1.end,
+                strand=g1.strand
+            )
+
+            for j in range(xlim[0], xlim[1], 1): # col index
+                # align two gene sequences if no match is found
+                if mat[i][j] < 1:
+                    g0 = x[j]
+
+                    s0 = get_genomic_seq(
+                        genome = self.genome,
+                        chr=g0.chr,
+                        start=g0.start,
+                        end=g0.end,
+                        strand=g0.strand
+                    )
+
+                    seq_fn = os.path.join(wkdir, 'to_aln.fa')
+                    with open(seq_fn, 'w') as seq_fh:
+                        seq_fh.write(f'>{g1.name}_{g1.chr}_{i}\n{s1}\n') 
+                        seq_fh.write(f'>{g0.name}_{g0.chr}_{j}\n{s0}\n')
+
+                    # run a*pa2 (messages suppressed)
+                    aln_fn = os.path.join(wkdir, 'pa_aln.csv')
+                    cmd = f'pa-bin --input {seq_fn} -o {aln_fn}'
+                    subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                    if os.path.getsize(aln_fn) == 0:
+                        continue
+                    
+                    pident = utl.parse_pa_aln(aln_fn)
+                    if pident > min_pident:
+                        if g1.strand == g0.strand: # same strand match
+                            mat[i][j] = 1.0
+                        else: # opposite strand match
+                            mat[i][j] = 2.0
+                    self.pident_mat[i][j] = pident
+
+                    cmd = f'rm {seq_fn} {aln_fn}'
+                    subprocess.call(cmd, shell=True)
+
+        utl.plot_2d_matrix(
+            mat = mat[ylim[0] - plt_wd : ylim[1] + plt_wd, xlim[0] - plt_wd : xlim[1] + plt_wd],
+            # below three args are not used when is_interactive == False
+            x_gene_order = x[xlim[0] - plt_wd : xlim[1] + plt_wd],
+            y_gene_order = y[ylim[0] - plt_wd : ylim[1] + plt_wd],
+            n = max(xlim[1] - xlim[0], ylim[1] - ylim[0]) + (plt_wd * 2),
+            dot_s = 50,
+            save = True,
+            is_interactive = False,
+            out_fp = os.path.join(wkdir, f'bp_{bp_i}_post.png')
+        )
+
+        return xlim, ylim
+
+def get_genomic_seq(
+    genome,
+    chr : str,
+    start : int,
+    end : int,
+    strand : str
+) -> str:
+    if strand == '+':
+        return genome[chr][start:end].seq.upper()
+    else:
+        return genome[chr][start:end].antisense.upper()

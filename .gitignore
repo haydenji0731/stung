@@ -1,4 +1,7 @@
 src/*.ipynb
 src/stung/__pycache__/*
+src/stung.egg-info/
 build/
 out/
+temp/
+*.ipynb
