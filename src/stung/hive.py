@@ -1,9 +1,11 @@
 import numpy as np
 from stung import bumble
+from collections import defaultdict
 
 def annotate(
     mat,
-    stung_blck : bumble.Block
+    n : int,
+    stung_blck : bumble.Block # end not inclusive
 ):
     """
     TODO
@@ -13,7 +15,7 @@ def annotate(
     x_start = stung_blck.start.x
     x_end = stung_blck.end.x
 
-    # first annotate fwd matches
+    # annotate fwd matches
     matches = [] # (x, y) coordinates
 
     y = y_start
@@ -52,6 +54,32 @@ def annotate(
         if y - prev_y > 1:
             y_gaps.append((prev_y, y - prev_y - 1))
     
+    # annotate inverse diagonal matches (continuous)
+    inv_matches, inv_diag_blcks = find_inverse_diagonals(
+        mat = mat,
+        x_start = x_start,
+        x_end = x_end,
+        y_start = y_start,
+        y_end = y_end,
+        n = n
+    )
+
+    # annotate duplications (row and col separately)
+
+    row_dups, col_dups, x_ins, y_ins = find_duplications(
+        mat = mat,
+        matches = matches,
+        x_start = x_start,
+        x_end = x_end,
+        y_start = y_start,
+        y_end = y_end
+    )
+
+    # TODO: finish implementation
+    # overlay gaps, inverse matches, and duplications
+    
+    # write results to file(s)
+
 def find_inverse_diagonals(
     mat,
     x_start : int,
@@ -88,10 +116,61 @@ def find_inverse_diagonals(
                 for k in range(l):
                     inv_matches.append((j + k, i - k))
                     diag_mat[i - k][j + k] = 0
-                inv_diag_blocks.append(
-                    
-                )
+                inv_diag_blocks.append(bumble.Block(
+                    start = bumble.Point(x = j, y = i),
+                    end = bumble.Point(x = j + l, y = i - l)
+                ))
 
-    return
+    return inv_matches, inv_diag_blocks
         
+def find_duplications(
+    mat,
+    matches,
+    x_start : int,
+    x_end : int,
+    y_start : int,
+    y_end : int
+):
+    """
+    """
+    row_dups = defaultdict(list) # h1 dups found on h0
+    col_dups = defaultdict(list) # h0 dups found on h1
 
+    y_ins = []
+    x_ins = []
+    
+    for i in range(y_start, y_end, 1):
+        curr_matches = np.where(mat[i] > 0)[0]
+        if len(curr_matches) == 0:
+            y_ins.append((i, 1))
+            continue
+        else:
+            if len(curr_matches) > 1:
+                duplicated = True
+            else:
+                duplicated = False
+        
+        for j in curr_matches:
+            if (i, j) in matches:
+                continue
+            if duplicated:
+                row_dups[i].append((int(j), bool(mat[i][j] == 2)))
+    
+    for j in range(x_start, x_end, 1):
+        curr_matches = np.where(mat[:, j] > 0)[0]
+        if len(curr_matches) == 0:
+            x_ins.append((j, 1))
+            continue
+        else:
+            if len(curr_matches) > 1:
+                duplicated = True
+            else:
+                duplicated = False
+        
+        for i in curr_matches:
+            if (i, j) in matches:
+                continue
+            if duplicated:
+                col_dups[j].append((int(i), bool(mat[i][j] == 2)))
+
+    return row_dups, col_dups, x_ins, y_ins
