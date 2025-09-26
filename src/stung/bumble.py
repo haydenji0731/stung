@@ -185,7 +185,7 @@ class Bumble:
         pad : int = 10,
         plt_wd : int = 5,
         min_pident : float = 90.0
-    ) -> tuple[tuple[int, int]]:
+    ):
         """
         TODO
         """
@@ -280,7 +280,7 @@ class Bumble:
             out_fp = os.path.join(wkdir, f'bp_{bp_i}_post.png')
         )
 
-        return xlim, ylim
+        return xlim, ylim, wkdir
 
 def get_genomic_seq(
     genome,

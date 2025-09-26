@@ -1,5 +1,6 @@
 import numpy as np
 from stung import bumble
+from stung import hive
 import os
 import copy
 
@@ -95,7 +96,7 @@ def collapse_blocks(
         
     return ctr, collapsed
             
-def annotate_stungs(
+def get_stungs(
     colin_blocks : list[bumble.Block],
     verbose : bool = False
 ) -> list[tuple[bumble.Point, bumble.Point]]:
@@ -159,14 +160,14 @@ def buzz(
 
     bumble.write_blocks2file(colin_blocks, os.path.join(out_dir, 'pre_colin_blcks.tsv'))
     
-    stungs = annotate_stungs(
+    stungs = get_stungs(
         colin_blocks = colin_blocks,
         verbose = verbose
     )
 
     stung_blcks = []
     for i, stung in enumerate(stungs):
-        xlim, ylim = bmbl.extend_colinear_blocks(
+        xlim, ylim, wkdir = bmbl.extend_colinear_blocks(
             mat = mat,
             n = n,
             stung = stung,
@@ -183,6 +184,14 @@ def buzz(
             )
         )
         stung_blcks.append(stung_blck)
-        break # TODO: remove after testing
+
+        hive.dissect(
+            mat = mat,
+            n = n,
+            out_dir = wkdir,
+            stung_blck = stung_blck,
+        )
+
+        # break # TODO: remove after testing
     
     return init_mat, stungs, stung_blcks

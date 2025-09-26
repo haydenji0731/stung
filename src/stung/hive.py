@@ -1,11 +1,13 @@
 import numpy as np
 from stung import bumble
 from collections import defaultdict
+import os
 
-def annotate(
+def dissect(
     mat,
     n : int,
-    stung_blck : bumble.Block # end not inclusive
+    out_dir : str,
+    stung_blck : bumble.Block, # end not inclusive,
 ):
     """
     TODO
@@ -41,7 +43,6 @@ def annotate(
     matches.sort(key = lambda xy : xy[0])
 
     # annotate gaps
-
     x_gaps = []
     y_gaps = []
 
@@ -53,6 +54,8 @@ def annotate(
             x_gaps.append((prev_x, x - prev_x - 1))
         if y - prev_y > 1:
             y_gaps.append((prev_y, y - prev_y - 1))
+        prev_x = x
+        prev_y = y
     
     # annotate inverse diagonal matches (continuous)
     inv_matches, inv_diag_blcks = find_inverse_diagonals(
@@ -65,7 +68,6 @@ def annotate(
     )
 
     # annotate duplications (row and col separately)
-
     row_dups, col_dups, x_ins, y_ins = find_duplications(
         mat = mat,
         matches = matches,
@@ -75,10 +77,70 @@ def annotate(
         y_end = y_end
     )
 
-    # TODO: finish implementation
     # overlay gaps, inverse matches, and duplications
+    row_anns = [[] for _ in range(n)]
+    col_anns = [[] for _ in range(n)]
+
+    for start_i, l in x_gaps:
+        for i in range(l):
+            col_anns[start_i + i].append('INS') # TODO: handle this better
     
+    for start_i, l in y_gaps:
+        for i in range(l):
+            row_anns[start_i + i].append('INS')
+    
+    for x, y in inv_matches:
+        col_anns[x].append(f'INV_BLCK:{y}')
+        row_anns[y].append(f'INV_BLCK:{x}')
+    
+    for y in row_dups:
+        for x, is_inverse in row_dups[y]:
+            if is_inverse:
+                row_anns[y].append(f'INV_DUP:{x}')
+            else:
+                row_anns[y].append(f'DUP:{x}')
+    
+    for x in col_dups:
+        for y, is_inverse in col_dups[x]:
+            if is_inverse:
+                col_anns[x].append(f'INV_DUP:{y}')
+            else:
+                col_anns[x].append(f'INV_DUP:{y}')
+    
+    for y, _ in y_ins:
+        if 'INS' not in row_anns[y]:
+            row_anns[y].append('INS')
+    for x, _ in x_ins:
+        if 'INS' not in col_anns[x]:
+            row_anns[x].append('INS')
+        
     # write results to file(s)
+    _, _ = write_ann2file(
+        out_dir = out_dir,
+        n = n,
+        row_anns = row_anns,
+        col_anns = col_anns
+    )
+
+def write_ann2file(
+    out_dir : str,
+    n : int,
+    row_anns : list[list[str]],
+    col_anns : list[list[str]]
+) -> tuple[str, str]:
+    """
+    TODO
+    """
+    row_ann_fp = os.path.join(out_dir, 'row_events.ann')
+    with open(row_ann_fp, 'w') as fh:
+        for i in range(n):
+            fh.write(f'{i}\t{";".join(row_anns[i])}\n')
+    
+    col_ann_fp = os.path.join(out_dir, 'col_events.ann')
+    with open(col_ann_fp, 'w') as fh:
+        for i in range(n):
+            fh.write(f'{i}\t{";".join(col_anns[i])}\n')
+    return row_ann_fp, col_ann_fp
 
 def find_inverse_diagonals(
     mat,

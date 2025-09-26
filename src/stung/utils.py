@@ -115,21 +115,38 @@ def plot_2d_matrix(
         y_1, x_1 = np.where(mat == 1) # fwd matches
         y_2, x_2 = np.where(mat == 2) # rev matches
 
-        plt.figure(figsize = fig_size, dpi = dpi)
-        plt.ylabel('h1')
-        plt.xlabel('h0')
+        fig, ax = plt.subplots(figsize=fig_size, dpi=dpi)
 
-        plt.scatter(x_1, y_1, color='blue', marker='s', s=dot_s)
-        plt.scatter(x_2, y_2, color='red', marker='s', s=dot_s)
+        ax.set_ylabel('h1')
+        ax.set_xlabel('h0')
 
-        plt.xlim(0, len(mat[0]))
-        plt.ylim(0, len(mat))
+        ax.scatter(x_1, y_1, color='blue', marker='s', s=dot_s)
+        ax.scatter(x_2, y_2, color='red', marker='s', s=dot_s)
+
+        ax.set_xlim(0, len(mat[0]))
+        ax.set_ylim(0, len(mat))
 
         if save:
-            plt.savefig(out_fp)
-            plt.close()
+            fig.savefig(out_fp, bbox_inches='tight')
         else:
             plt.show()
+
+        plt.close(fig)
+
+        # plt.figure(figsize = fig_size, dpi = dpi)
+        # plt.ylabel('h1')
+        # plt.xlabel('h0')
+
+        # plt.scatter(x_1, y_1, color='blue', marker='s', s=dot_s)
+        # plt.scatter(x_2, y_2, color='red', marker='s', s=dot_s)
+
+        # plt.xlim(0, len(mat[0]))
+        # plt.ylim(0, len(mat))
+
+        # if save:
+        #     plt.savefig(out_fp)
+        # else:
+        #     plt.show()
 
 
 def parse_cigar(
