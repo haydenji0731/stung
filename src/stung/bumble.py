@@ -217,7 +217,9 @@ class Bumble:
             dot_s = 50,
             save = True,
             is_interactive = False,
-            out_fp = os.path.join(wkdir, f'bp_{bp_i}_pre.png')
+            out_fp = os.path.join(wkdir, f'bp_{bp_i}_pre.png'),
+            x_offset = xlim[0],
+            y_offset = ylim[0]
         )
 
         for i in tqdm(range(ylim[0], ylim[1], 1)): # row index
@@ -269,7 +271,7 @@ class Bumble:
                     subprocess.call(cmd, shell=True)
 
         utl.plot_2d_matrix(
-            mat = mat[ylim[0] - plt_wd : ylim[1] + plt_wd, xlim[0] - plt_wd : xlim[1] + plt_wd],
+            mat = mat[ylim[0]:ylim[1], xlim[0]:xlim[1]],
             # below three args are not used when is_interactive == False
             x_gene_order = x[xlim[0] - plt_wd : xlim[1] + plt_wd],
             y_gene_order = y[ylim[0] - plt_wd : ylim[1] + plt_wd],
@@ -277,7 +279,9 @@ class Bumble:
             dot_s = 50,
             save = True,
             is_interactive = False,
-            out_fp = os.path.join(wkdir, f'bp_{bp_i}_post.png')
+            out_fp = os.path.join(wkdir, f'bp_{bp_i}_post.png'),
+            x_offset = xlim[0],
+            y_offset = ylim[0]
         )
 
         return xlim, ylim, wkdir

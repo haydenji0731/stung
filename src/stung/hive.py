@@ -51,14 +51,14 @@ def dissect(
         x, y = matches[i]
         if x - prev_x > 1:
             # gap_start, gap_length
-            x_gaps.append((prev_x, x - prev_x - 1))
+            x_gaps.append((prev_x + 1, x - prev_x - 1))
         if y - prev_y > 1:
-            y_gaps.append((prev_y, y - prev_y - 1))
+            y_gaps.append((prev_y + 1, y - prev_y - 1))
         prev_x = x
         prev_y = y
     
     # annotate inverse diagonal matches (continuous)
-    inv_matches, inv_diag_blcks = find_inverse_diagonals(
+    inv_matches, _ = find_inverse_diagonals(
         mat = mat,
         x_start = x_start,
         x_end = x_end,
@@ -68,9 +68,9 @@ def dissect(
     )
 
     # annotate duplications (row and col separately)
-    row_dups, col_dups, x_ins, y_ins = find_duplications(
+    row_dups, row_matches, col_dups, col_matches, x_ins, y_ins = find_duplications(
         mat = mat,
-        matches = matches,
+        diag_matches = matches,
         x_start = x_start,
         x_end = x_end,
         y_start = y_start,
@@ -100,12 +100,26 @@ def dissect(
             else:
                 row_anns[y].append(f'DUP:{x}')
     
+    for y in row_matches:
+        for x, is_inverse in row_matches[y]:
+            if is_inverse:
+                row_anns[y].append(f'INV_MATCH:{x}')
+            else:
+                row_anns[y].append(f'MATCH:{x}')
+    
     for x in col_dups:
         for y, is_inverse in col_dups[x]:
             if is_inverse:
                 col_anns[x].append(f'INV_DUP:{y}')
             else:
-                col_anns[x].append(f'INV_DUP:{y}')
+                col_anns[x].append(f'DUP:{y}')
+    
+    for x in col_matches:
+        for y, is_inverse in col_matches[x]:
+            if is_inverse:
+                col_anns[x].append(f'INV_MATCH:{y}')
+            else:
+                col_anns[x].append(f'MATCH:{y}')
     
     for y, _ in y_ins:
         if 'INS' not in row_anns[y]:
@@ -187,16 +201,19 @@ def find_inverse_diagonals(
         
 def find_duplications(
     mat,
-    matches,
+    diag_matches,
     x_start : int,
     x_end : int,
     y_start : int,
     y_end : int
 ):
     """
+    TODO
     """
     row_dups = defaultdict(list) # h1 dups found on h0
+    row_matches = defaultdict(list) # h1 off-diag matches found on h0
     col_dups = defaultdict(list) # h0 dups found on h1
+    col_matches = defaultdict(list) # h0 off-diag matches found on h1
 
     y_ins = []
     x_ins = []
@@ -206,33 +223,39 @@ def find_duplications(
         if len(curr_matches) == 0:
             y_ins.append((i, 1))
             continue
-        else:
-            if len(curr_matches) > 1:
-                duplicated = True
-            else:
-                duplicated = False
         
+        diag_match_found = False
         for j in curr_matches:
-            if (i, j) in matches:
+            if (j, i) in diag_matches:
+                diag_match_found = True
+                break
+
+        for j in curr_matches:
+            if (j, i) in diag_matches:
                 continue
-            if duplicated:
+            if diag_match_found:
                 row_dups[i].append((int(j), bool(mat[i][j] == 2)))
+            else:
+                row_matches[i].append((int(j), bool(mat[i][j] == 2)))
     
     for j in range(x_start, x_end, 1):
         curr_matches = np.where(mat[:, j] > 0)[0]
         if len(curr_matches) == 0:
             x_ins.append((j, 1))
             continue
-        else:
-            if len(curr_matches) > 1:
-                duplicated = True
-            else:
-                duplicated = False
+
+        diag_match_found = False
+        for i in curr_matches:
+            if (j, i) in diag_matches:
+                diag_match_found = True
+                break
         
         for i in curr_matches:
-            if (i, j) in matches:
+            if (j, i) in diag_matches:
                 continue
-            if duplicated:
+            if diag_match_found:
                 col_dups[j].append((int(i), bool(mat[i][j] == 2)))
+            else:
+                col_matches[j].append((int(i), bool(mat[i][j] == 2)))
 
-    return row_dups, col_dups, x_ins, y_ins
+    return row_dups, row_matches, col_dups, col_matches, x_ins, y_ins

@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import re
 import numpy as np
 
+EXPECTED_PLT_DIM=100
+
 def is_protein_coding(
     gene : gan.GFeature
 ) -> bool:
@@ -58,7 +60,9 @@ def plot_2d_matrix(
     dpi : int = 100,
     dot_s : int = 1,
     save : bool = False,
-    out_fp : str = None
+    out_fp : str = None,
+    x_offset : int = 0,
+    y_offset : int = 0
 ):
     """
     TODO
@@ -68,6 +72,9 @@ def plot_2d_matrix(
         raise ValueError()
     
     if save and is_interactive:
+        raise ValueError()
+    
+    if (x_offset > 0 or y_offset > 0) and is_interactive:
         raise ValueError()
     
     if is_interactive:
@@ -126,27 +133,26 @@ def plot_2d_matrix(
         ax.set_xlim(0, len(mat[0]))
         ax.set_ylim(0, len(mat))
 
+        if x_offset > 0:
+            if len(mat[0]) > EXPECTED_PLT_DIM:
+                print(f'warning : number of cols ({len(mat[0])}) may be too large for vis')
+            x_ticks = np.arange(len(mat[0]))
+            ax.set_xticks(x_ticks)
+            ax.set_xticklabels(x_ticks + x_offset, rotation=90)
+        
+        if y_offset > 0:
+            if len(mat) > EXPECTED_PLT_DIM:
+                print(f'warning : number of rows {len(mat)}) may be too large for vis')
+            y_ticks = np.arange(len(mat))
+            ax.set_yticks(y_ticks)
+            ax.set_yticklabels(y_ticks + y_offset, rotation=90)
+
         if save:
             fig.savefig(out_fp, bbox_inches='tight')
         else:
             plt.show()
 
         plt.close(fig)
-
-        # plt.figure(figsize = fig_size, dpi = dpi)
-        # plt.ylabel('h1')
-        # plt.xlabel('h0')
-
-        # plt.scatter(x_1, y_1, color='blue', marker='s', s=dot_s)
-        # plt.scatter(x_2, y_2, color='red', marker='s', s=dot_s)
-
-        # plt.xlim(0, len(mat[0]))
-        # plt.ylim(0, len(mat))
-
-        # if save:
-        #     plt.savefig(out_fp)
-        # else:
-        #     plt.show()
 
 
 def parse_cigar(

@@ -191,7 +191,21 @@ def buzz(
             out_dir = wkdir,
             stung_blck = stung_blck,
         )
+        # break # remove after testing
 
-        # break # TODO: remove after testing
+    # update colin_blocks
+    diag_mlen_mat_2 = compute_mlen(mat = mat, n = n)
+    colin_blocks_2 = find_colinear_blocks(
+        mlen_mat = diag_mlen_mat_2.copy(),
+        n = n,
+        verbose = verbose
+    )
+    n_collapsed_2, colin_blocks_2 = collapse_blocks(
+        blocks = colin_blocks_2
+    )
+    if verbose:
+        print(f'{n_collapsed_2} blocks were collapsed (post-alignment)')
+
+    bumble.write_blocks2file(colin_blocks_2, os.path.join(out_dir, 'post_colin_blcks.tsv'))
     
-    return init_mat, stungs, stung_blcks
+    return init_mat, mat, stungs, stung_blcks
