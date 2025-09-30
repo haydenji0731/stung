@@ -4,4 +4,6 @@ src/stung.egg-info/
 build/
 out/
 temp/
+data/
+results/
 *.ipynb

@@ -208,4 +208,4 @@ def buzz(
 
     bumble.write_blocks2file(colin_blocks_2, os.path.join(out_dir, 'post_colin_blcks.tsv'))
     
-    return init_mat, mat, stungs, stung_blcks
+    return init_mat, stungs, stung_blcks
