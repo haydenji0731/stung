@@ -89,7 +89,13 @@ def collapse_blocks(
             continue
         if bumble.do_connect_greedy(anchor, b):
             ctr += 1
-            anchor = bumble.Block(anchor.start, b.end)
+            anchor = bumble.Block(
+                anchor.start, 
+                bumble.Point(
+                    x = max(anchor.end.x, b.end.x),
+                    y = max(anchor.end.y, b.end.y)
+                )
+            )
         else:
             anchor = b
             collapsed.append(b)
@@ -155,11 +161,12 @@ def buzz(
     n_collapsed, colin_blocks = collapse_blocks(
         blocks = colin_blocks
     )
+
     if verbose:
         print(f'{n_collapsed} blocks were collapsed')
 
     bumble.write_blocks2file(colin_blocks, os.path.join(out_dir, 'pre_colin_blcks.tsv'))
-    
+
     stungs = get_stungs(
         colin_blocks = colin_blocks,
         verbose = verbose

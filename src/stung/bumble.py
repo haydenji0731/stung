@@ -46,9 +46,12 @@ def do_connect_greedy(
     """
     dx = anchor.end.x - other.start.x
     dy = anchor.end.y - other.start.y
+    print(f'{anchor}\n{other}')
     dx = max(0, dx)
     dy = max(0, dy)
     A = dx * dy
+    print(A / other.area)
+    print(A / other.area > max_ratio)
     return A / other.area > max_ratio
 
 def write_blocks2file(
@@ -183,7 +186,6 @@ class Bumble:
         stung : tuple[Point, Point],
         bp_i : int,
         pad : int = 10,
-        plt_wd : int = 5,
         min_pident : float = 90.0
     ):
         """
@@ -273,9 +275,9 @@ class Bumble:
         utl.plot_2d_matrix(
             mat = mat[ylim[0]:ylim[1], xlim[0]:xlim[1]],
             # below three args are not used when is_interactive == False
-            x_gene_order = x[xlim[0] - plt_wd : xlim[1] + plt_wd],
-            y_gene_order = y[ylim[0] - plt_wd : ylim[1] + plt_wd],
-            n = max(xlim[1] - xlim[0], ylim[1] - ylim[0]) + (plt_wd * 2),
+            x_gene_order = x[xlim[0]:xlim[1]],
+            y_gene_order = y[ylim[0]:ylim[1]],
+            n = max(xlim[1] - xlim[0], ylim[1] - ylim[0]),
             dot_s = 50,
             save = True,
             is_interactive = False,
