@@ -46,12 +46,9 @@ def do_connect_greedy(
     """
     dx = anchor.end.x - other.start.x
     dy = anchor.end.y - other.start.y
-    print(f'{anchor}\n{other}')
     dx = max(0, dx)
     dy = max(0, dy)
     A = dx * dy
-    print(A / other.area)
-    print(A / other.area > max_ratio)
     return A / other.area > max_ratio
 
 def write_blocks2file(
@@ -146,6 +143,7 @@ class Bumble:
                     strand = x[4]
                 ) for x in gene_order
             ]
+            self.gene_orders[hid].sort(key=lambda x: x.start)
         
         x = self.gene_orders["h0"]
         y = self.gene_orders["h1"]
