@@ -184,7 +184,7 @@ class Bumble:
         stung : tuple[Point, Point],
         bp_i : int,
         pad : int = 10,
-        min_pident : float = 90.0
+        min_pident : float = 80.0
     ):
         """
         TODO
@@ -248,8 +248,8 @@ class Bumble:
 
                     seq_fn = os.path.join(wkdir, 'to_aln.fa')
                     with open(seq_fn, 'w') as seq_fh:
-                        seq_fh.write(f'>{g1.name}_{g1.chr}_{i}\n{s1}\n') 
-                        seq_fh.write(f'>{g0.name}_{g0.chr}_{j}\n{s0}\n')
+                        seq_fh.write(f'>{g1.name}_{g1.chr}_{i}\n{s1.upper()}\n') 
+                        seq_fh.write(f'>{g0.name}_{g0.chr}_{j}\n{s0.upper()}\n')
 
                     # run a*pa2 (messages suppressed)
                     aln_fn = os.path.join(wkdir, 'pa_aln.csv')
@@ -269,6 +269,12 @@ class Bumble:
 
                     cmd = f'rm {seq_fn} {aln_fn}'
                     subprocess.call(cmd, shell=True)
+        
+        self.save_pident_mat(
+            fp = os.path.join(wkdir, 'pident_mat.tsv'),
+            xlim = xlim,
+            ylim = ylim
+        )
 
         utl.plot_2d_matrix(
             mat = mat[ylim[0]:ylim[1], xlim[0]:xlim[1]],
@@ -285,6 +291,25 @@ class Bumble:
         )
 
         return xlim, ylim, wkdir
+    
+    def save_pident_mat(
+        self,
+        fp : str,
+        xlim : tuple[int, int],
+        ylim : tuple[int, int]
+    ):
+        with open(fp, 'w') as fh:
+
+            fh.write(f'i')
+            for j in range(ylim[0], ylim[1]):
+                fh.write(f'\t{j}')
+            fh.write('\n')
+
+            for i in range(xlim[0], xlim[1]):
+                fh.write(f'{i}')
+                for j in range(ylim[0], ylim[1]):
+                    fh.write(f'\t{self.pident_mat[i][j]}')
+                fh.write(f'\n')
 
 def get_genomic_seq(
     genome,

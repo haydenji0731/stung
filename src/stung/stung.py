@@ -198,7 +198,6 @@ def buzz(
             out_dir = wkdir,
             stung_blck = stung_blck,
         )
-        # break # remove after testing
 
     # update colin_blocks
     diag_mlen_mat_2 = compute_mlen(mat = mat, n = n)

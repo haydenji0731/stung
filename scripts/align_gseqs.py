@@ -6,6 +6,8 @@ date : 10/02/25
 contact : hji20@jh.edu
 """
 
+# dotplotter available @ https://github.com/drboothtj/dotplotter/tree/main
+
 import argparse
 import os
 from stung import utils
@@ -84,6 +86,7 @@ def extract(
 def align(
     x_fn : str,
     y_fn : str,
+    aln_fn : str,
     plt_fn : str
 ):
     """
@@ -92,7 +95,10 @@ def align(
     if not os.path.exists(x_fn) or not os.path.exists(y_fn):
         raise FileNotFoundError()
     
-    cmd = f'{BLASTN} -query {x_fn} -subject {y_fn} -outfmt 6 | dotplotter'
+    cmd = f'{BLASTN} -query {x_fn} -subject {y_fn} -outfmt 6 > {aln_fn}'
+    subprocess.call(cmd, shell=True)
+
+    cmd = f'dotplotter -i {aln_fn}'
     subprocess.call(cmd, shell=True)
 
     cmd = f'mv output.png {plt_fn}'
@@ -135,9 +141,11 @@ def main():
 
     print(f'INFO - running blastn')
     plt_fn = os.path.join(args.out_dir, f'x_{x_start}:{x_end}_y_{y_start}:{y_end}.png')
+    aln_fn = os.path.join(args.out_dir, f'x_{x_start}:{x_end}_y_{y_start}:{y_end}.blastn.tsv')
     align(
         x_fn = x_fn,
         y_fn = y_fn,
+        aln_fn = aln_fn,
         plt_fn = plt_fn
     )
 
