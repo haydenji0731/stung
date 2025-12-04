@@ -6,6 +6,9 @@ from tqdm import tqdm
 import subprocess
 
 class Point:
+    """
+    A class representing a point in 2d space
+    """
     def __init__(
         self,
         x : int,
@@ -20,6 +23,10 @@ class Point:
         return f"{self.x},{self.y}"
 
 class Block:
+    """
+    A class representing a block defined by two points, start and end.
+    The start point is lower left corner; the end point is upper right corner.
+    """
     def __init__(
         self,
         start : Point,
@@ -56,6 +63,7 @@ def write_blocks2file(
     out_fp : str
 ):
     """
+    write list of blocks into a text file
     """
     with open(out_fp, 'w') as fh:
         for b in blocks:
@@ -71,7 +79,8 @@ class Gene:
         strand : str
     ):
         """
-        TODO
+        A class representing a gene.
+        Retains a subset of properties that mjol offers for GFeature
         """
         self.name = name
         self.chr = chr
@@ -85,6 +94,9 @@ class Gene:
         return f'{self.name}\t{self.chr}\t{self.start}\t{self.end}\t{self.strand}'
 
 class Bumble:
+    """
+    A class representing the initial parameters for a stung analysis
+    """
     def __init__(
         self,
         genome_fp : str,
@@ -96,7 +108,20 @@ class Bumble:
         pad_len : int = 10
     ):
         """
-        TODO
+        initializes a Bumble instance
+        args :
+            self
+            genome_fp (str) : genome FASTA file path
+            ann_fps (list(str)) : list of file paths for gene annotation files (must be either gff/gtf formatted)
+            temp_dir (str) : path to which intermediate files are saved
+            out_dir (str) : output directory where global results (i.e., not specific to a breakpoint)
+            min_pident (float; default = 90.0) : minimum percent identity to be considered a match
+            min_diag_len (int; default = 10) : minimum diagonal length to be considered a colinear block
+            pad_len (int; default = 10) : extra number of genes to analyze during colinear block refinement
+        returns :
+            None
+        raises :
+            None
         """
         try:
             self.genome = pyfastx.Fasta(genome_fp)
@@ -113,6 +138,7 @@ class Bumble:
         
         os.makedirs(out_dir, exist_ok = True)
         os.makedirs(temp_dir, exist_ok = True)
+
         self.out_dir = out_dir
         self.temp_dir = temp_dir
         self.min_pident = min_pident
@@ -123,17 +149,21 @@ class Bumble:
         self.y_gene_order = None
         self.pident_mat = None
     
-    def build_2d_matrix(
-        self
-    ):
+    def build_2d_matrix(self):
         """
+        builds a 2d matrix based on HUGO gene symbol matches between
+        protein coding genes in input annotations
         args :
+            self
         returns :
+            mat (np.ndarray) : square 2d matrix storing gene symbol matches
+            n (int) : length of the matrix
         raises :
+            None
         """
 
         for hid, ann_fp in self.hindex.items():
-            gene_order = utl.parse_protein_coding_genes(ann_fp)
+            gene_order, _ = utl.parse_protein_coding_genes(ann_fp)
             self.gene_orders[hid] = [
                 Gene(
                     name = x[0],
@@ -179,15 +209,25 @@ class Bumble:
     
     def extend_colinear_blocks(
         self,
-        mat,
+        mat : np.ndarray,
         n : int,
         stung : tuple[Point, Point],
-        bp_i : int,
-        pad : int = 10,
-        min_pident : float = 80.0
+        bp_i : int
     ):
         """
-        TODO
+        extends colinear blocks via pairwise sequence alignments that may add
+        additional matches to the 2d match matrix
+        args :
+            mat (np.ndarray) : 2d match matrix
+            n (int) : length of mat
+            stung (tuple(Point, Point)) : a stung region defined by two points; left-closed, right-open (=lcro)
+            bp_i (int) : breakpoint index
+        returns :
+            xlim (tuple(int, int)) : x axis limits (left and right); lcro
+            ylim (tuple(int, int)) : y axis limits (top and bottom); lcro
+            wkdir (str) : path to which intermediate files are saved
+        raises :
+            None
         """
 
         if self.pident_mat is None:
@@ -195,8 +235,8 @@ class Bumble:
 
         start, end = stung
 
-        xlim = (start.x - pad, end.x + pad)
-        ylim = (start.y - pad, end.y + pad)
+        xlim = (start.x - self.pad_len, end.x + self.pad_len)
+        ylim = (start.y - self.pad_len, end.y + self.pad_len)
 
         wkdir = os.path.join(self.temp_dir, str(bp_i))
         cmd = f'mkdir -p {wkdir}'
@@ -210,13 +250,12 @@ class Bumble:
 
         utl.plot_2d_matrix(
             mat = mat[ylim[0]:ylim[1], xlim[0]:xlim[1]],
-            # below three args are not used when is_interactive == False
-            x_gene_order = x[xlim[0]:xlim[1]],
-            y_gene_order = y[ylim[0]:ylim[1]],
-            n = max(xlim[1] - xlim[0], ylim[1] - ylim[0]),
-            dot_s = 50,
-            save = True,
+            x_gene_order = None,
+            y_gene_order = None,
+            n = None,
             is_interactive = False,
+            dot_s = 50, # bigger dots used
+            save = True,
             out_fp = os.path.join(wkdir, f'bp_{bp_i}_pre.png'),
             x_offset = xlim[0],
             y_offset = ylim[0]
@@ -233,7 +272,8 @@ class Bumble:
                 strand=g1.strand
             )
 
-            for j in range(xlim[0], xlim[1], 1): # col index
+            for j in range(xlim[0], xlim[1], 1): # iterates through col index
+
                 # align two gene sequences if no match is found
                 if mat[i][j] < 1:
                     g0 = x[j]
@@ -260,7 +300,7 @@ class Bumble:
                         continue
                     
                     pident = utl.parse_pa_aln(aln_fn)
-                    if pident > min_pident:
+                    if pident > self.min_pident:
                         if g1.strand == g0.strand: # same strand match
                             mat[i][j] = 1.0
                         else: # opposite strand match
@@ -269,37 +309,40 @@ class Bumble:
 
                     cmd = f'rm {seq_fn} {aln_fn}'
                     subprocess.call(cmd, shell=True)
-        
-        self.save_pident_mat(
-            fp = os.path.join(wkdir, 'pident_mat.tsv'),
-            xlim = xlim,
-            ylim = ylim
-        )
-
+    
         utl.plot_2d_matrix(
             mat = mat[ylim[0]:ylim[1], xlim[0]:xlim[1]],
-            # below three args are not used when is_interactive == False
-            x_gene_order = x[xlim[0]:xlim[1]],
-            y_gene_order = y[ylim[0]:ylim[1]],
-            n = max(xlim[1] - xlim[0], ylim[1] - ylim[0]),
-            dot_s = 50,
-            save = True,
+            x_gene_order = None,
+            y_gene_order = None,
+            n = None,
             is_interactive = False,
+            dot_s = 50, # bigger dots used
+            save = True,
             out_fp = os.path.join(wkdir, f'bp_{bp_i}_post.png'),
             x_offset = xlim[0],
             y_offset = ylim[0]
         )
 
         return xlim, ylim, wkdir
-    
+
     def save_pident_mat(
         self,
-        fp : str,
+        file_path : str,
         xlim : tuple[int, int],
         ylim : tuple[int, int]
     ):
-        with open(fp, 'w') as fh:
-
+        """
+        saves pairwise percent identity matrix for a specific region
+        args :
+            file_path (str) : file path to which percent identity matrix is saved
+            xlim (tuple(int, int)) : x axis limits (left, right); lcro
+            ylim (tuple(int, int)) : y axis limits (top, bottom); lcro
+        returns :
+            None
+        raises :
+            None
+        """
+        with open(file_path, 'w') as fh:
             fh.write(f'i')
             for j in range(ylim[0], ylim[1]):
                 fh.write(f'\t{j}')
@@ -312,13 +355,29 @@ class Bumble:
                 fh.write(f'\n')
 
 def get_genomic_seq(
-    genome,
+    genome : pyfastx.Fasta,
     chr : str,
     start : int,
     end : int,
     strand : str
 ) -> str:
+    """
+    extracts a genomic sequence from pyfastx.Fasta object
+    args :
+        chr (str) : chromosome
+        start (int) : 0-based start coordinate
+        end (int) : 0-based end coordinate
+        strand (str) : strand information; either '+' or '-'
+    returns :
+        s (str) : extracted genomic sequence; upper-cased
+    raises :
+        ValueError
+    """
+    if strand != ['+', '-']:
+        raise ValueError(f'unknown strand {strand}; must either be "+" or "-"')
+    
     if strand == '+':
-        return genome[chr][start:end].seq.upper()
+        s = genome[chr][start:end].seq.upper()
     else:
-        return genome[chr][start:end].antisense.upper()
+        s = genome[chr][start:end].antisense.upper()
+    return s
