@@ -14,10 +14,9 @@ from stung import utils
 import pyfastx
 import subprocess
 
-BLASTN = "/ccb/salz4-3/hji20/stung/tools/ncbi-blast-2.16.0+/bin/blastn"
-
 def parse():
     parser = argparse.ArgumentParser(description="")
+    parser.add_argument('-b', '--blast-path', type=str, help="", required=True)
     parser.add_argument('-h0', '--h0-file', type=str, help="", required=True)
     parser.add_argument('-h1', '--h1-file', type=str, help="", required=True)
     parser.add_argument('-g', '--genome', type=str, help="", required=True)
@@ -28,9 +27,6 @@ def parse():
     return args
 
 def check_args(args):
-    """
-    TODO
-    """
     if not os.path.exists(args.h0_file) or \
         not os.path.exists(args.h1_file) or \
         not os.path.exists(args.genome):
@@ -56,7 +52,7 @@ def check_coords(
         raise ValueError("invalid y range")
     
 def extract(
-    genome,
+    genome : pyfastx.Fasta,
     x_chrom : str,
     x_grange : tuple[int, int],
     y_chrom : str,
@@ -64,7 +60,7 @@ def extract(
     out_dir : str
 ):
     """
-    TODO
+    extracts genomic sequences to align
     """
     if x_chrom not in genome or y_chrom not in genome:
         raise KeyError()
@@ -86,16 +82,17 @@ def extract(
 def align(
     x_fn : str,
     y_fn : str,
+    blast_path : str,
     aln_fn : str,
     plt_fn : str
 ):
     """
-    TODO
+    run blastn (=blast2seq) alignments
     """
     if not os.path.exists(x_fn) or not os.path.exists(y_fn):
         raise FileNotFoundError()
     
-    cmd = f'{BLASTN} -query {x_fn} -subject {y_fn} -outfmt 6 > {aln_fn}'
+    cmd = f'{blast_path} -query {x_fn} -subject {y_fn} -outfmt 6 > {aln_fn}'
     subprocess.call(cmd, shell=True)
 
     cmd = f'dotplotter -i {aln_fn}'
@@ -109,8 +106,8 @@ def main():
     check_args(args)
 
     print(f'INFO - parsing h0 and h1 annotations')
-    h0_gene_order = utils.parse_protein_coding_genes(args.h0_file)
-    h1_gene_order = utils.parse_protein_coding_genes(args.h1_file)
+    h0_gene_order, _ = utils.parse_protein_coding_genes(args.h0_file)
+    h1_gene_order, _ = utils.parse_protein_coding_genes(args.h1_file)
 
     check_coords(
         x_coords = args.x_coords,
@@ -145,6 +142,7 @@ def main():
     align(
         x_fn = x_fn,
         y_fn = y_fn,
+        blast_path = args.blast_path,
         aln_fn = aln_fn,
         plt_fn = plt_fn
     )

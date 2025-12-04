@@ -20,12 +20,9 @@ def parse():
     return args
 
 def load_input(
-    fp : str
+    file_path : str
 ):
-    """
-    TODO
-    """
-    df = pd.read_csv(fp, header=None, comment='#')
+    df = pd.read_csv(file_path, header=None, comment='#')
     df.columns = [
         "prefix",
         "h0_filepath",
@@ -67,6 +64,7 @@ def main():
             out_dir = wkdir
         )
         mat, n = bmbl.build_2d_matrix()
+        utils.save_2d_matrix(mat, os.path.join(wkdir, 'mat.pre.tsv'))
 
         utils.plot_2d_matrix(
             mat = mat,
@@ -78,13 +76,15 @@ def main():
             out_fp = os.path.join(wkdir, 'full.pre.png')
         )
 
-        init_mat, stungs, stung_blcks = stung.buzz(
+        # TODO : is this optimal?
+        _, _, _ = stung.buzz(
             mat = mat,
             bmbl = bmbl,
             n = n,
             out_dir = wkdir,
             verbose = True
         )
+        utils.save_2d_matrix(mat, os.path.join(wkdir, 'mat.post.tsv'))
 
         utils.plot_2d_matrix(
             mat = mat,
