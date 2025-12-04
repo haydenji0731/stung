@@ -4,27 +4,38 @@ from collections import defaultdict
 import os
 
 def dissect(
-    mat,
+    mat : np.ndarray,
     n : int,
     out_dir : str,
-    stung_blck : bumble.Block, # end not inclusive,
+    stung_blck : bumble.Block,
 ):
     """
-    TODO
+    annotates various genomic rearrangements events including 
+    insertions, duplications, non-colinear matches, and long
+    stretches of inverse diagonal matches
+    args : 
+        mat (np.ndarray) : 2d match matrix
+        n (int) : dimension
+        out_dir (str) : output directory
+        stung_blck (bumble.Block) : a stung (= breakpoint in between colienar blocks) instance
+    returns :
+        None
+    raises :
+        None
     """
     y_start = stung_blck.start.y
     y_end = stung_blck.end.y
     x_start = stung_blck.start.x
     x_end = stung_blck.end.x
 
-    # annotate fwd matches
-    matches = [] # (x, y) coordinates
+    # annotate same strand matches
+    matches = set() # (x, y) coordinates
 
     y = y_start
     x = x_start
     while y < y_end and x < x_end:
         if mat[y][x] == 1:
-            matches.append((x, y))
+            matches.add((x, y))
         else:
             break
         x += 1
@@ -34,15 +45,16 @@ def dissect(
     x = x_end
     while y >= y_start and x >= x_start:
         if mat[y][x] == 1:
-            matches.append((x, y))
+            matches.add((x, y))
         else:
             break
         x -= 1
         y -= 1
 
+    matches = len(matches)
     matches.sort(key = lambda xy : xy[0])
 
-    # annotate gaps
+    # annotate gaps (= where insertions occur)
     x_gaps = []
     y_gaps = []
 
@@ -68,6 +80,7 @@ def dissect(
     )
 
     # annotate duplications (row and col separately)
+    # also annotates additional insertions based on row and col sums
     row_dups, row_matches, col_dups, col_matches, x_ins, y_ins = find_duplications(
         mat = mat,
         diag_matches = matches,
@@ -77,13 +90,13 @@ def dissect(
         y_end = y_end
     )
 
-    # overlay gaps, inverse matches, and duplications
+    # overlay gaps, opposite strand matches, and duplications
     row_anns = [[] for _ in range(n)]
     col_anns = [[] for _ in range(n)]
 
     for start_i, l in x_gaps:
         for i in range(l):
-            col_anns[start_i + i].append('INS') # TODO: handle this better
+            col_anns[start_i + i].append('INS')
     
     for start_i, l in y_gaps:
         for i in range(l):
@@ -143,21 +156,31 @@ def write_ann2file(
     col_anns : list[list[str]]
 ) -> tuple[str, str]:
     """
-    TODO
+    writes genomic event annotations as TSV files
+    args :
+        out_dir (str) : output directory
+        n (int) : dimension
+        row_anns (list(list(str))) : list of row event annotations; each row is associated with a list of events
+        col_anns (list(list(str))) : list of col event annotations; each col is associated with a list of events
+    returns :
+        row_file_path (str) : path to the file where row event annotations are saved
+        col_file_path (str) : path to the file where col event annotations are saved
+    raises :
+        None
     """
-    row_ann_fp = os.path.join(out_dir, 'row_events.ann')
-    with open(row_ann_fp, 'w') as fh:
+    row_file_path = os.path.join(out_dir, 'row_events.ann')
+    with open(row_file_path, 'w') as fh:
         for i in range(n):
             fh.write(f'{i}\t{";".join(row_anns[i])}\n')
     
-    col_ann_fp = os.path.join(out_dir, 'col_events.ann')
-    with open(col_ann_fp, 'w') as fh:
+    col_file_path = os.path.join(out_dir, 'col_events.ann')
+    with open(col_file_path, 'w') as fh:
         for i in range(n):
             fh.write(f'{i}\t{";".join(col_anns[i])}\n')
-    return row_ann_fp, col_ann_fp
+    return row_file_path, col_file_path
 
 def find_inverse_diagonals(
-    mat,
+    mat : np.ndarray,
     x_start : int,
     x_end : int,
     y_start : int,
@@ -166,7 +189,20 @@ def find_inverse_diagonals(
     min_l : int = 2
 ):
     """
-    TODO
+    finds diagonal stretches of consecutive inverse matches
+    args :
+        mat (np.ndarray) : 2d match matrix
+        x_start (int) : start coordinate on x-axis
+        x_end (int) : end coordinate on x-axis
+        y_start (int) : start coordinate on y-axis
+        y_end (int) : end coordinate on y-axis
+        n (int) : dimension
+        min_l : minimum diagonal length to be considered a diagonal match
+    returns :
+        inv_matches (list(tuple(int, int))) : list of points that comprises inverse diagonal matches
+        inv_diag_blocks (list(bumble.Block)) : list of inverse diagonal blocks
+    raises :
+        None
     """
     diag_mat = np.zeros((n, n))
 
@@ -175,7 +211,7 @@ def find_inverse_diagonals(
             y, x = i, j
             ctr = 0
             while y >= y_start and x < x_end:
-                if mat[y][x] == 2: # only look for rev matches
+                if mat[y][x] == 2: # only look for opposite strand matches
                     ctr += 1
                 else:
                     break
@@ -200,15 +236,34 @@ def find_inverse_diagonals(
     return inv_matches, inv_diag_blocks
         
 def find_duplications(
-    mat,
-    diag_matches,
+    mat : np.ndarray,
+    diag_matches : list[tuple[int, int]],
     x_start : int,
     x_end : int,
     y_start : int,
     y_end : int
 ):
     """
-    TODO
+    classifies same strand and opposite strand matches as either
+    diagonal (~colinear) or non-diagonal (~non-colinear) or duplications
+    if a match is NOT part of a larger diagonal stretch, then it is either a non-diagonal
+    match or a duplication depending whether a match already exists on some diagonal
+    args :
+        mat (np.ndarray) : 2d matrix
+        diag_matches (list(tuple(int, int))) : list of diagonal matches
+        x_start : start coordinate on the x-axis
+        x_end : end coordinate on the x-axis
+        y_start : start coordinate on the y-axis
+        y_end : end coordinate on the y-axis
+    returns :
+        row_dups
+        row_matches
+        col_dups
+        col_matches
+        x_ins
+        y_ins
+    raises :
+        None
     """
     row_dups = defaultdict(list) # h1 dups found on h0
     row_matches = defaultdict(list) # h1 off-diag matches found on h0
