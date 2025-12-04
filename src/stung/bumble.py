@@ -44,28 +44,48 @@ class Block:
     ):
         return f'{str(self.start)}\t{str(self.end)}'
 
+### helper functions on Block instances
+
 def do_connect_greedy(
     anchor : Block,
     other : Block,
-    max_ratio : float = 0.5
+    min_ratio : float = 0.5
 ):
     """
+    decides whether to connect two blocks based on the area of intersection between them.
+    if the area of intersection is > min_ratio threshold, then do connect.
+    args :
+        anchor (Block) : running anchor
+        other (Block) : another block being considered for a connect / merge
+        min_ratio (float; default = 0.5) : minimum intersection ratio to allow connection
+    returns :
+        connect (bool) : whether to connect the other Block with the anchor Block
+    raises :
+        None
     """
     dx = anchor.end.x - other.start.x
     dy = anchor.end.y - other.start.y
     dx = max(0, dx)
     dy = max(0, dy)
-    A = dx * dy
-    return A / other.area > max_ratio
+    A = dx * dy # intersecting area size
+    connect = A / other.area > min_ratio
+    return connect
 
 def write_blocks2file(
     blocks : list[Block],
-    out_fp : str
+    out_file_path : str
 ):
     """
     write list of blocks into a text file
+    args :
+        blocks (list(Block)) : list of Block instances
+        out_file_path (str) : output file path
+    returns :
+        None
+    raises :
+        None
     """
-    with open(out_fp, 'w') as fh:
+    with open(out_file_path, 'w') as fh:
         for b in blocks:
             fh.write(f'{str(b)}\n')
 
@@ -80,7 +100,6 @@ class Gene:
     ):
         """
         A class representing a gene.
-        Retains a subset of properties that mjol offers for GFeature
         """
         self.name = name
         self.chr = chr
@@ -227,7 +246,7 @@ class Bumble:
             ylim (tuple(int, int)) : y axis limits (top and bottom); lcro
             wkdir (str) : path to which intermediate files are saved
         raises :
-            None
+            RuntimeError
         """
 
         if self.pident_mat is None:
@@ -296,10 +315,15 @@ class Bumble:
                     cmd = f'pa-bin --input {seq_fn} -o {aln_fn}'
                     subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
+                    # if no alignment was returned, skip
                     if os.path.getsize(aln_fn) == 0:
                         continue
                     
                     pident = utl.parse_pa_aln(aln_fn)
+                    
+                    if pident is None:
+                        raise RuntimeError(f'error while parsing alignment results : no score detected')
+                    
                     if pident > self.min_pident:
                         if g1.strand == g0.strand: # same strand match
                             mat[i][j] = 1.0

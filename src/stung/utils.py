@@ -11,25 +11,42 @@ def is_protein_coding(
     gene : gan.GFeature
 ) -> bool:
     """
+    checks if a GFeature instance is a protein coding gene
+    based on whether or not the gene has a CDS record associated with it
+    args :
+        gene (gan.GFeature) : input gene as GFeature instance
+    returns :
+        is_protein_coding : True if the input gene is protein coding
+    raises :
+        None
     """
+    is_protein_coding = False
     for tx in gene.children:
         for child in tx.children:
             if child.feature_type == "CDS":
-                return True
-    return False
+                is_protein_coding = True
+    return is_protein_coding
 
 def parse_protein_coding_genes(
-    fp : str
+    file_path : str
 ):
     """
+    parses a list of protein coding genes from an annotation file
+    args :
+        file_path (str) : path to an input gene annotation file
+    returns :
+        gene_order (list) : list of protein coding genes as tuples
+        gan_db (gan.GAn) : gan database instance constructed from the annotation
+    raises :
+        ValueError
     """
-    fmt = os.path.basename(fp).split('.')[-1].lower()
+    fmt = os.path.basename(file_path).split('.')[-1].lower()
     if fmt not in ['gff', 'gtf']:
-        raise ValueError()
+        raise ValueError(f'invalid annotation file format {fmt}')
     
     try:
         gan_db = gan.GAn(
-            file_name = fp,
+            file_name = file_path,
             file_fmt = fmt
         )
         gan_db.build_db()
@@ -45,41 +62,60 @@ def parse_protein_coding_genes(
             gene_name = f.attributes['gene_name'] if 'gene_name' in f.attributes else None
             
             if not gene_name:
-                print("warning"); continue
+                print(f"warning : no gene name detected for feature {f}"); continue
 
-            gene_order.append((gene_name, f.chr, f.start, f.end, f.strand))
-    return gene_order
+            gene_order.append((gene_name, f.chr, f.start, f.end, f.strand, f))
+    return gene_order, gan_db
 
 def plot_2d_matrix(
-    mat,
-    x_gene_order : list,
-    y_gene_order : list,
-    n : int,
+    mat : np.ndarray,
+    x_gene_order : list[str] = None,
+    y_gene_order : list[str] = None,
+    n : int = 0,
     is_interactive : bool = True,
     fig_size : tuple = (10, 10),
     dpi : int = 100,
     dot_s : int = 1,
     save : bool = False,
-    out_fp : str = None,
+    out_file_path : str = None,
     x_offset : int = 0,
     y_offset : int = 0
 ):
     """
-    TODO
+    plots 2d matrix as a static or interactive plot
+    args :
+        mat (np.ndarray) : match matrix
+        x_gene_order (list(str)) : ordered list of x-axis genes
+        y_gene_order (list(str)) : ordered list of y-axis genes
+        n (int) : match matrix dimension
+        is_interactive (bool; default=True) : whether to enable interactive plotting
+        fig_size (tuple(int, int); default=(10, 10)) : figure size for static plotting
+        dpi (int; default=100) : dpi for static plotting
+        dot_s (int; default=1) : dot size for static plotting
+        save (bool; default=False) : whether to save the static plot
+        out_file_path (str) : output file path where a plot is saved
+        x_offset (int; default=0) : offset used to adjust the x-axis indices
+        y_offset (int; default=0) : offset used to adjust the y-axis indices
+    returns :
+        None
+    raises :
+        ValueError
+        RuntimeError
     """
-    
-    if save and not out_fp:
-        raise ValueError()
-    
-    if save and is_interactive:
-        raise ValueError()
-    
-    if (x_offset > 0 or y_offset > 0) and is_interactive:
-        raise ValueError()
-    
     if is_interactive:
-        if n != len(mat) or n != len(mat[0]):
-            raise ValueError()
+
+        # check args
+        if save:
+            raise ValueError('save operation not supported for interactive plots')
+        
+        if (x_offset > 0 or y_offset > 0):
+            raise ValueError(f'x and/or y offsets not supported for interactive plots')
+        
+        if not x_gene_order or not y_gene_order:
+            raise ValueError(f'please provide x and y-axis gene lists')
+            
+        if n != len(mat):
+            raise ValueError(f'invalid dimension {n}; please provide the correct dimension for interactive plotting')
         
         custom_data = np.empty((n, n), dtype=object)
         for i in range(n):
@@ -91,18 +127,17 @@ def plot_2d_matrix(
                     x_val = None if j >= len(x_gene_order) else x_gene_order[j].name
                     custom_data[i][j] = (x_val, y_val)
         custom_colorscale = [
-            [0.0, "white"],
-            [0.333, "white"],
-            [0.334, "blue"],
-            [0.666, "blue"],
-            [0.667, "red"],
-            [1.0, "red"]
+            [0.0, "white"],  # 0 -> white
+            [0.5, "blue"],   # 1 -> blue
+            [1.0, "red"]     # 2 -> red
         ]
         fig = pgo.Figure(data=pgo.Heatmap(
             z=mat,
             colorscale=custom_colorscale,
             customdata=custom_data,
             showscale=False,
+            zmin=0,
+            zmax=2,
             hovertemplate="x: %{customdata[0]}<br>y: %{customdata[1]}<extra></extra>",
         ))
 
@@ -145,21 +180,56 @@ def plot_2d_matrix(
                 print(f'warning : number of rows {len(mat)}) may be too large for vis')
             y_ticks = np.arange(len(mat))
             ax.set_yticks(y_ticks)
+            # TODO : does this work?
             ax.set_yticklabels(y_ticks + y_offset, rotation=90)
 
         if save:
-            fig.savefig(out_fp, bbox_inches='tight')
+            try:
+                fig.savefig(out_file_path, bbox_inches='tight')
+            except Exception as e:
+                raise RuntimeError(f'error while saving the plot : {e}') from e
         else:
             plt.show()
 
         plt.close(fig)
 
+def save_2d_matrix(
+        mat : np.ndarray,
+        file_path : str
+):
+    """
+    saves a 2d matrix as a TSV file
+    args :
+        mat (np.ndarray) : input 2d matrix
+        file_path (str) : where the matrix is saved to
+    returns :
+        None
+    raises :
+        None
+    """
+    n_cols = len(mat[0])
+    n_rows = len(mat)
+    with open(file_path, 'w') as fh:
+        fh.write(f'i')
+        for j in range(n_cols):
+            fh.write(f'\t{j}')
+        fh.write('\n')
+
+        for i in range(n_rows):
+            fh.write(f'{i}')
+            for j in range(n_cols):
+                fh.write(f'\t{mat[i][j]}')
+            fh.write(f'\n')
 
 def parse_cigar(
     s : str
 ) -> list[tuple[str, int]]:
     """
-    TODO
+    parses a CIGAR string generated by A*PA aligner
+    args :
+        s (str) : CIGAR string
+    returns :
+        cigar_ops (list(tuple(str, int))) : list of (cigar_op, length) tuples 
     """
     cigar_ops = []
     i = 0
@@ -179,18 +249,27 @@ def parse_cigar(
     return cigar_ops
 
 def parse_pa_aln(
-    fp : str
-):
+    file_path : str
+) -> float:
     """
-    TODO
+    parses the alignment CSV file generated by A*PA aligner
+    args :
+        file_path (str) : file path to the alignment results
+    returns :
+        max_pident (float) : maximum percent identity
     """
-    pident = None
-    with open(fp, 'r') as fh:
+    with open(file_path, 'r') as fh:
+        max_pident = None
         for ln in fh:
             parts = ln.strip().split(",")
             cigar = parts[1]
             cigar_ops = parse_cigar(cigar)
             tot_l = sum([x[0] for x in cigar_ops])
             eq_l = sum([x[0] for x in cigar_ops if x[1] == '='])
-            pident = eq_l / tot_l * 100 # TODO: discuss this calculation
-    return pident
+            pident = eq_l / tot_l * 100
+            if not max_pident:
+                max_pident = pident
+            else:
+                if pident > max_pident:
+                    max_pident = pident
+    return max_pident
