@@ -2,7 +2,6 @@ import pyfastx
 import stung.utils as utl
 import os
 import numpy as np
-from tqdm import tqdm
 import subprocess
 
 class Point:
@@ -241,6 +240,7 @@ class Bumble:
             n (int) : length of mat
             stung (tuple(Point, Point)) : a stung region defined by two points; left-closed, right-open (=lcro)
             bp_i (int) : breakpoint index
+            fig_size (tuple(int, int)) : plot figure size
         returns :
             xlim (tuple(int, int)) : x axis limits (left and right); lcro
             ylim (tuple(int, int)) : y axis limits (top and bottom); lcro
@@ -269,18 +269,19 @@ class Bumble:
 
         utl.plot_2d_matrix(
             mat = mat[ylim[0]:ylim[1], xlim[0]:xlim[1]],
+            pident_mat = None,
             x_gene_order = None,
             y_gene_order = None,
             n = None,
             is_interactive = False,
             dot_s = 50, # bigger dots used
             save = True,
-            out_fp = os.path.join(wkdir, f'bp_{bp_i}_pre.png'),
+            out_file_path = os.path.join(wkdir, f'bp_{bp_i}_pre.png'),
             x_offset = xlim[0],
             y_offset = ylim[0]
         )
 
-        for i in tqdm(range(ylim[0], ylim[1], 1)): # row index
+        for i in range(ylim[0], ylim[1], 1): # row index
             g1 = y[i]
 
             s1 = get_genomic_seq(
@@ -336,13 +337,14 @@ class Bumble:
     
         utl.plot_2d_matrix(
             mat = mat[ylim[0]:ylim[1], xlim[0]:xlim[1]],
+            pident_mat = None,
             x_gene_order = None,
             y_gene_order = None,
             n = None,
             is_interactive = False,
             dot_s = 50, # bigger dots used
             save = True,
-            out_fp = os.path.join(wkdir, f'bp_{bp_i}_post.png'),
+            out_file_path = os.path.join(wkdir, f'bp_{bp_i}_post.png'),
             x_offset = xlim[0],
             y_offset = ylim[0]
         )
@@ -397,7 +399,7 @@ def get_genomic_seq(
     raises :
         ValueError
     """
-    if strand != ['+', '-']:
+    if strand not in ['+', '-']:
         raise ValueError(f'unknown strand {strand}; must either be "+" or "-"')
     
     if strand == '+':

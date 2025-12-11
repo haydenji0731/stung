@@ -51,7 +51,7 @@ def dissect(
         x -= 1
         y -= 1
 
-    matches = len(matches)
+    matches = list(matches)
     matches.sort(key = lambda xy : xy[0])
 
     # annotate gaps (= where insertions occur)

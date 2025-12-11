@@ -67,13 +67,46 @@ def parse_protein_coding_genes(
             gene_order.append((gene_name, f.chr, f.start, f.end, f.strand, f))
     return gene_order, gan_db
 
+# plotting helper functions
+
+def do_labels_overlap(ax, axis='x') -> bool:
+    fig = ax.figure
+    fig.canvas.draw()
+    
+    if axis == 'x':
+        labels = ax.get_xticklabels()
+    else:
+        labels = ax.get_yticklabels()
+
+    bboxes = [label.get_window_extent() for label in labels if label.get_text()]
+
+    for i, bbox1 in enumerate(bboxes):
+        for bbox2 in bboxes[i+1:]:
+            if bbox1.overlaps(bbox2):
+                return True
+    return False
+
+def auto_resize_until_no_overlap(fig, ax, axis='x', max_iter=5, scale=1.2):
+    for _ in range(max_iter):
+        if not do_labels_overlap(ax, axis):
+            return fig
+
+        w, h = fig.get_size_inches()
+        if axis == 'x':
+            fig.set_size_inches((w * scale, h))
+        else:
+            fig.set_size_inches((w, h * scale))
+        fig.canvas.draw()
+    return fig
+
 def plot_2d_matrix(
     mat : np.ndarray,
+    pident_mat : np.ndarray = None,
     x_gene_order : list[str] = None,
     y_gene_order : list[str] = None,
     n : int = 0,
     is_interactive : bool = True,
-    fig_size : tuple = (10, 10),
+    fig_size : tuple = (10, 10), # starting default plot size
     dpi : int = 100,
     dot_s : int = 1,
     save : bool = False,
@@ -85,6 +118,7 @@ def plot_2d_matrix(
     plots 2d matrix as a static or interactive plot
     args :
         mat (np.ndarray) : match matrix
+        pident_mat (nd.ndarray) : pairwise percent identity matrix
         x_gene_order (list(str)) : ordered list of x-axis genes
         y_gene_order (list(str)) : ordered list of y-axis genes
         n (int) : match matrix dimension
@@ -117,15 +151,16 @@ def plot_2d_matrix(
         if n != len(mat):
             raise ValueError(f'invalid dimension {n}; please provide the correct dimension for interactive plotting')
         
-        custom_data = np.empty((n, n), dtype=object)
+        custom_data = [[None for _ in range(n)] for _ in range(n)]
         for i in range(n):
             for j in range(n):
                 if mat[i][j] == 0:
-                    custom_data[i][j] = ("None", "None")
+                    custom_data[i][j] = ("None", "None", "None")
                 else:
                     y_val = None if i >= len(y_gene_order) else y_gene_order[i].name
                     x_val = None if j >= len(x_gene_order) else x_gene_order[j].name
-                    custom_data[i][j] = (x_val, y_val)
+                    pident = None if (pident_mat is None or pident_mat[i][j] == 0.0) else f"{pident_mat[i][j]:.2f}"
+                    custom_data[i][j] = [x_val, y_val, str(pident)]
         custom_colorscale = [
             [0.0, "white"],  # 0 -> white
             [0.5, "blue"],   # 1 -> blue
@@ -138,7 +173,12 @@ def plot_2d_matrix(
             showscale=False,
             zmin=0,
             zmax=2,
-            hovertemplate="x: %{customdata[0]}<br>y: %{customdata[1]}<extra></extra>",
+            hovertemplate=(
+                "x: %{customdata[0]}<br>"
+                "y: %{customdata[1]}<br>"
+                "percent identity: %{customdata[2]}<br>"
+                "<extra></extra>"
+            )
         ))
 
         fig.update_layout(
@@ -180,8 +220,11 @@ def plot_2d_matrix(
                 print(f'warning : number of rows {len(mat)}) may be too large for vis')
             y_ticks = np.arange(len(mat))
             ax.set_yticks(y_ticks)
-            # TODO : does this work?
-            ax.set_yticklabels(y_ticks + y_offset, rotation=90)
+            ax.set_yticklabels(y_ticks + y_offset)
+
+        # automatic resizing
+        fig = auto_resize_until_no_overlap(fig, ax, axis='x')
+        fig = auto_resize_until_no_overlap(fig, ax, axis='y')
 
         if save:
             try:

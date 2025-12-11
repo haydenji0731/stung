@@ -13,8 +13,8 @@ import pandas as pd
 
 def parse():
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument('-i', '--input', type=str, help="", required=True)
-    parser.add_argument('-g', '--genome', type=str, help="", required=True)
+    parser.add_argument('-i', '--input', type=str, help="csv", required=True)
+    parser.add_argument('-g', '--genome', type=str, help="fasta", required=True)
     parser.add_argument('-o', '--out-dir', type=str, help="", required=False, default='out')
     args = parser.parse_args()
     return args
@@ -64,19 +64,19 @@ def main():
             out_dir = wkdir
         )
         mat, n = bmbl.build_2d_matrix()
-        utils.save_2d_matrix(mat, os.path.join(wkdir, 'mat.pre.tsv'))
+        utils.save_2d_matrix(mat, os.path.join(wkdir, 'mmat.pre.tsv'))
 
         utils.plot_2d_matrix(
             mat = mat,
+            pident_mat = None,
             x_gene_order = bmbl.x_gene_order,
             y_gene_order=bmbl.y_gene_order,
             n = n,
             is_interactive=False,
             save=True,
-            out_fp = os.path.join(wkdir, 'full.pre.png')
+            out_file_path = os.path.join(wkdir, 'full.pre.png')
         )
 
-        # TODO : is this optimal?
         _, _, _ = stung.buzz(
             mat = mat,
             bmbl = bmbl,
@@ -84,17 +84,21 @@ def main():
             out_dir = wkdir,
             verbose = True
         )
-        utils.save_2d_matrix(mat, os.path.join(wkdir, 'mat.post.tsv'))
+
+        utils.save_2d_matrix(mat, os.path.join(wkdir, 'mmat.post.tsv'))
 
         utils.plot_2d_matrix(
             mat = mat,
+            pident_mat = None,
             x_gene_order = bmbl.x_gene_order,
             y_gene_order=bmbl.y_gene_order,
             n = n,
             is_interactive=False,
             save=True,
-            out_fp = os.path.join(wkdir, 'full.post.png')
+            out_file_path = os.path.join(wkdir, 'full.post.png')
         )
+
+        utils.save_2d_matrix(mat, os.path.join(wkdir, 'pident.tsv'))
 
 if __name__ == "__main__":
     main()

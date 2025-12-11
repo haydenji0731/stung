@@ -3,10 +3,6 @@ src/stung/__pycache__/*
 src/stung.egg-info/
 scripts/make_sub_anns.sh
 build/
-out/
-temp/
-data/
 tools/
-notebooks_OLD/
 results/
-results_OLD/
+OLD/

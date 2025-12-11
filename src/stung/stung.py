@@ -229,13 +229,16 @@ def buzz(
     stung_blcks = []
 
     # perform pairwise nucleotide sequence alignments
+    if verbose:
+        print("executing pairwise alignments around stungs...")
+
     for i, stung in enumerate(stungs):
+        
         xlim, ylim, wkdir = bmbl.extend_colinear_blocks(
             mat = mat,
             n = n,
             stung = stung,
-            bp_i = i,
-            pad = bmbl.pad
+            bp_i = i
         )
         stung_blck = bumble.Block(
             start = bumble.Point(
@@ -260,6 +263,7 @@ def buzz(
     diag_mlen_mat_2 = compute_mlen(mat = mat, n = n)
     colin_blocks_2 = find_colinear_blocks(
         mlen_mat = diag_mlen_mat_2.copy(),
+        min_dlen = bmbl.min_dlen,
         n = n,
         verbose = verbose
     )
