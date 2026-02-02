@@ -98,7 +98,7 @@ def main():
             out_file_path = os.path.join(wkdir, 'full.post.png')
         )
 
-        utils.save_2d_matrix(mat, os.path.join(wkdir, 'pident.tsv'))
+        utils.save_2d_matrix(bmbl.pident_mat, os.path.join(wkdir, 'pident.tsv'))
 
 if __name__ == "__main__":
     main()

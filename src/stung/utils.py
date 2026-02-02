@@ -1,5 +1,6 @@
 from mjol import gan
 import os
+import pandas as pd
 import plotly.graph_objects as pgo
 import matplotlib.pyplot as plt
 import re
@@ -98,6 +99,23 @@ def auto_resize_until_no_overlap(fig, ax, axis='x', max_iter=5, scale=1.2):
             fig.set_size_inches((w, h * scale))
         fig.canvas.draw()
     return fig
+
+def load_2d_matrix(
+    file_path : str
+) -> np.ndarray:
+    """
+    TODO
+    args :
+    returns :
+    raises :
+        FileNotFoundError
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f'file @ {file_path} dne')
+    
+    mat = pd.read_csv(file_path, sep=r"\s+", index_col=0)
+    mat = mat.to_numpy()
+    return mat
 
 def plot_2d_matrix(
     mat : np.ndarray,
@@ -235,6 +253,136 @@ def plot_2d_matrix(
             plt.show()
 
         plt.close(fig)
+
+class Region:
+    """
+    A class representing a subregion of a 2d matrix
+    """
+    def __init__(
+        self,
+        chr : str,
+        mat : np.ndarray,
+        x_start : int,
+        x_end : int,
+        y_start : int,
+        y_end : int
+    ):
+        self.chr = chr
+        self.xst = x_start
+        self.xen = x_end
+        self.yst = y_start
+        self.yen = y_end
+        self.data = mat[y_start:y_end, x_start:x_end].copy()
+    
+    def __str__(
+        self
+    ):
+        return f"x:{self.xst}-{self.xen}\ny:{self.yst}-{self.yen}"
+
+MAJOR_TICK_SIZE = 6
+MINOR_TICK_SIZE = 3
+
+def plot_2d_matrices(
+    regions : list[Region],
+    dot_sizes : list[int],
+    out_file_path : str,
+    fig_size : tuple = (3.42, 3.42),
+    file_type : str = "svg",
+    axis_title_size : int = 8,
+    tick_label_size : int = 6,
+    xlabel_vert : float = 0.01,
+    ylabel_vert : float = 0.55,
+):
+    """
+    TODO
+    args :
+    returns :
+    raises :
+        ValueError
+    """
+    if len(regions) % 2 != 0:
+        raise ValueError(f"number of regions must be divisible by two; got {len(regions)}")
+
+    if len(regions) != len(dot_sizes):
+        raise ValueError()
+    
+    n_regions = len(regions)
+    n_cols = 2
+    n_rows = int(np.ceil(n_regions / n_cols))
+
+    fig, axes = plt.subplots(
+        nrows = n_rows,
+        ncols = n_cols,
+        figsize = (fig_size[0] * n_cols, fig_size[1] * n_rows)
+    )
+    
+    axes = np.atleast_2d(axes)
+    fig.patch.set_alpha(0)
+
+    for i, region in enumerate(regions):
+        dot_s = dot_sizes[i]
+        x_offset = region.xst
+        y_offset = region.yst
+
+        y_1, x_1 = np.where(region.data == 1) # fwd matches
+        y_2, x_2 = np.where(region.data == 2) # rev matches
+
+        row = i // n_cols
+        col = i % n_cols
+        ax = axes[row, col]
+        ax.patch.set_alpha(0)
+
+        # draw dots
+        ax.scatter(x_1, y_1, color="blue", marker="s", s=dot_s)
+        ax.scatter(x_2, y_2, color="red", marker="s", s=dot_s)
+        ax.set_xlim(0, region.data.shape[1])
+        ax.set_ylim(0, region.data.shape[0])
+
+        ax.tick_params(axis="both", labelsize=tick_label_size)
+
+        if x_offset > 0:
+            x_ticks = np.arange(region.data.shape[1] + 1)
+            ax.set_xticks(x_ticks)
+
+            # add tick label each increment of 5
+            x_labels = [
+                str(t + x_offset) if (t + x_offset) % 5 == 0 else ""
+                for t in x_ticks
+            ]
+
+            ax.set_xticklabels(x_labels, rotation=90)
+
+            for tick in ax.xaxis.get_ticklines():
+                tick_val = tick.get_xdata()[0]
+                if (tick_val + x_offset) % 5 == 0:
+                    tick.set_markersize(MAJOR_TICK_SIZE)
+                else:
+                    tick.set_markersize(MINOR_TICK_SIZE)
+            
+        if y_offset > 0:
+            y_ticks = np.arange(region.data.shape[0] + 1)
+            ax.set_yticks(y_ticks)
+
+            # add tick label each increment of 5
+            y_labels = [
+                str(t + y_offset) if (t + y_offset) % 5 == 0 else ""
+                for t in y_ticks
+            ]
+
+            ax.set_yticklabels(y_labels, rotation=90)
+            for tick in ax.yaxis.get_ticklines():
+                tick_val = tick.get_ydata()[0]
+                if (tick_val + y_offset) % 5 == 0:
+                    tick.set_markersize(MAJOR_TICK_SIZE)
+                else:
+                    tick.set_markersize(MINOR_TICK_SIZE)
+    
+    # add superlabels to x and y axis
+    fig.supxlabel("Maternal", fontsize=axis_title_size, y=xlabel_vert)
+    fig.supylabel("Paternal", fontsize=axis_title_size, y=ylabel_vert)
+    
+    fig.tight_layout()
+    fig.savefig(out_file_path, format=file_type, bbox_inches='tight')
 
 def save_2d_matrix(
         mat : np.ndarray,
