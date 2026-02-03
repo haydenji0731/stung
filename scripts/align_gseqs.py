@@ -21,8 +21,9 @@ def parse():
     parser.add_argument('-h1', '--h1-file', type=str, help="", required=True)
     parser.add_argument('-g', '--genome', type=str, help="", required=True)
     parser.add_argument('-o', '--out-dir', type=str, help="", required=False, default='out')
-    parser.add_argument('-x', '--x-coords', type=int, nargs=2, help="", required=True)
-    parser.add_argument('-y', '--y-coords', type=int, nargs=2, help="", required=True)
+    parser.add_argument('-f', '--plt-format', choices=["png", "svg"], required=False, default='svg')
+    parser.add_argument('-x', '--x-coords', type=int, nargs=2, help="fully closed", required=True)
+    parser.add_argument('-y', '--y-coords', type=int, nargs=2, help="fully closed", required=True)
     args = parser.parse_args()
     return args
 
@@ -30,7 +31,7 @@ def check_args(args):
     if not os.path.exists(args.h0_file) or \
         not os.path.exists(args.h1_file) or \
         not os.path.exists(args.genome):
-        raise FileNotFoundError()
+        raise FileNotFoundError(f'input file(s) dne')
     os.makedirs(args.out_dir, exist_ok=True)
 
 def check_coords(
@@ -73,10 +74,17 @@ def extract(
     x_out_fn = os.path.join(out_dir, 'x_gseq.fa')
     with open(x_out_fn, 'w') as fh:
         fh.write(f'>{x_chrom}_{x_gstart}:{x_gend}\n{x_gseq}')
+
+    # fai index helps compare the sequence lengths
+    cmd = f'samtools faidx {x_out_fn}'
+    subprocess.call(cmd, shell=True)
     
     y_out_fn = os.path.join(out_dir, 'y_gseq.fa')
     with open(y_out_fn, 'w') as fh:
         fh.write(f'>{y_chrom}_{y_gstart}:{y_gend}\n{y_gseq}')
+    cmd = f'samtools faidx {x_out_fn}'
+    subprocess.call(cmd, shell=True)
+
     return x_out_fn, y_out_fn
 
 def align(
@@ -84,7 +92,8 @@ def align(
     y_fn : str,
     blast_path : str,
     aln_fn : str,
-    plt_fn : str
+    plt_fn : str,
+    plt_fmt : str
 ):
     """
     run blastn (=blast2seq) alignments
@@ -95,10 +104,10 @@ def align(
     cmd = f'{blast_path} -query {x_fn} -subject {y_fn} -outfmt 6 > {aln_fn}'
     subprocess.call(cmd, shell=True)
 
-    cmd = f'dotplotter -i {aln_fn}'
+    cmd = f'dotplotter -i {aln_fn} -f {plt_fmt}'
     subprocess.call(cmd, shell=True)
 
-    cmd = f'mv output.png {plt_fn}'
+    cmd = f'mv output.svg {plt_fn}'
     subprocess.call(cmd, shell=True)
     
 def main():
@@ -119,11 +128,11 @@ def main():
     genome = pyfastx.Fasta(args.genome)
     
     x_start, x_end = args.x_coords
-    x_gstart = h0_gene_order[x_start][2]
+    x_gstart = h0_gene_order[x_start][2] - 1 # adjust to 0-based, half-closed, half-open interval
     x_gend = h0_gene_order[x_end][3]
 
     y_start, y_end = args.y_coords
-    y_gstart = h1_gene_order[y_start][2]
+    y_gstart = h1_gene_order[y_start][2] - 1 # adjust to 0-based, half-closed, half-open interval
     y_gend = h1_gene_order[y_end][3]
 
     print(f'INFO - extracting genomic sequences')
@@ -137,14 +146,15 @@ def main():
     )
 
     print(f'INFO - running blastn')
-    plt_fn = os.path.join(args.out_dir, f'x_{x_start}:{x_end}_y_{y_start}:{y_end}.png')
+    plt_fn = os.path.join(args.out_dir, f'x_{x_start}:{x_end}_y_{y_start}:{y_end}.svg')
     aln_fn = os.path.join(args.out_dir, f'x_{x_start}:{x_end}_y_{y_start}:{y_end}.blastn.tsv')
     align(
         x_fn = x_fn,
         y_fn = y_fn,
         blast_path = args.blast_path,
         aln_fn = aln_fn,
-        plt_fn = plt_fn
+        plt_fn = plt_fn,
+        plt_fmt = args.plt_format
     )
 
 if __name__ == "__main__":

@@ -402,6 +402,7 @@ def get_genomic_seq(
     if strand not in ['+', '-']:
         raise ValueError(f'unknown strand {strand}; must either be "+" or "-"')
     
+    # TODO: fix the coordinates
     if strand == '+':
         s = genome[chr][start:end].seq.upper()
     else:

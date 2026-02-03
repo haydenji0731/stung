@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import plotly.graph_objects as pgo
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import re
 import numpy as np
 
@@ -292,6 +293,7 @@ def plot_2d_matrices(
     tick_label_size : int = 6,
     xlabel_vert : float = 0.01,
     ylabel_vert : float = 0.55,
+    hide_superlabels : bool = False,
 ):
     """
     TODO
@@ -300,14 +302,12 @@ def plot_2d_matrices(
     raises :
         ValueError
     """
-    if len(regions) % 2 != 0:
-        raise ValueError(f"number of regions must be divisible by two; got {len(regions)}")
 
     if len(regions) != len(dot_sizes):
         raise ValueError()
     
     n_regions = len(regions)
-    n_cols = 2
+    n_cols = 1 if n_regions == 1 else 2
     n_rows = int(np.ceil(n_regions / n_cols))
 
     fig, axes = plt.subplots(
@@ -369,7 +369,7 @@ def plot_2d_matrices(
                 for t in y_ticks
             ]
 
-            ax.set_yticklabels(y_labels, rotation=90)
+            ax.set_yticklabels(y_labels)
             for tick in ax.yaxis.get_ticklines():
                 tick_val = tick.get_ydata()[0]
                 if (tick_val + y_offset) % 5 == 0:
@@ -378,15 +378,148 @@ def plot_2d_matrices(
                     tick.set_markersize(MINOR_TICK_SIZE)
     
     # add superlabels to x and y axis
-    fig.supxlabel("Maternal", fontsize=axis_title_size, y=xlabel_vert)
-    fig.supylabel("Paternal", fontsize=axis_title_size, y=ylabel_vert)
+    if not hide_superlabels:
+        fig.supxlabel("Maternal", fontsize=axis_title_size, y=xlabel_vert)
+        fig.supylabel("Paternal", fontsize=axis_title_size, y=ylabel_vert)
     
     fig.tight_layout()
-    fig.savefig(out_file_path, format=file_type, bbox_inches='tight')
+    fig.savefig(
+        out_file_path, format=file_type, 
+        transparent=True, bbox_inches='tight'
+    )
+
+def plot_2d_pident(
+    mat : np.ndarray,
+    out_file_path : str,
+    x_offset : int = 0,
+    y_offset : int = 0,
+    dot_size : float = 3,
+    fig_size : tuple = (3.42, 3.42),
+    file_type: str = "svg",
+    axis_title_size: int = 8,
+    tick_label_size: int = 6,
+    xlabel_vert : float = 0.01,
+    ylabel_vert : float = 0.55,
+    hide_superlabels : bool = False,
+    cmap: str = "viridis"
+):
+    """
+    TODO
+    args :
+    returns :
+    raises :
+    """
+    fig, ax = plt.subplots(figsize=fig_size)
+
+    fig.patch.set_alpha(0)
+    ax.patch.set_alpha(0)
+
+    y_coords, x_coords = np.where(mat > 0)
+    values = mat[y_coords, x_coords]
+
+    sc = ax.scatter(
+        x_coords, 
+        y_coords, 
+        c=values, 
+        s=dot_size, 
+        marker="s", 
+        cmap=cmap
+    )
+
+    ax.tick_params(axis="both", labelsize=tick_label_size)
+
+    if x_offset > 0:
+        x_ticks = np.arange(mat.shape[1] + 1)
+        ax.set_xticks(x_ticks)
+
+        # add tick label each increment of 5
+        x_labels = [
+            str(t + x_offset) if (t + x_offset) % 5 == 0 else ""
+            for t in x_ticks
+        ]
+
+        ax.set_xticklabels(x_labels, rotation=90)
+
+        for tick in ax.xaxis.get_ticklines():
+            tick_val = tick.get_xdata()[0]
+            if (tick_val + x_offset) % 5 == 0:
+                tick.set_markersize(MAJOR_TICK_SIZE)
+            else:
+                tick.set_markersize(MINOR_TICK_SIZE)
+    
+    if y_offset > 0:
+        y_ticks = np.arange(mat.shape[0] + 1)
+        ax.set_yticks(y_ticks)
+
+        # add tick label each increment of 5
+        y_labels = [
+            str(t + y_offset) if (t + y_offset) % 5 == 0 else ""
+            for t in y_ticks
+        ]
+
+        ax.set_yticklabels(y_labels)
+        for tick in ax.yaxis.get_ticklines():
+            tick_val = tick.get_ydata()[0]
+            if (tick_val + y_offset) % 5 == 0:
+                tick.set_markersize(MAJOR_TICK_SIZE)
+            else:
+                tick.set_markersize(MINOR_TICK_SIZE)
+
+    # add superlabels to x and y axis
+    if not hide_superlabels:
+        fig.supxlabel("Maternal", fontsize=axis_title_size, y=xlabel_vert)
+        fig.supylabel("Paternal", fontsize=axis_title_size, y=ylabel_vert)
+
+    plt.tight_layout()
+    plt.savefig(
+        out_file_path, format=file_type, 
+        transparent=True, bbox_inches='tight'
+    )
+
+def plot_colorbar(
+    out_file_path : str,
+    mat : np.ndarray,
+    cmap : str = "viridis",
+    label : str = "Identity (%)",
+    fig_size : tuple = (1.0, 3.0),
+    tick_size : int = 6,
+    label_size : int = 8
+):
+    """
+    TODO
+    args :
+    returns :
+    raises :
+    """
+
+    vals = mat[mat > 0]
+    if vals.size > 0:
+        vmin = vals.min()
+        vmax = vals.max()
+    else:
+        raise ValueError()
+    
+    fig = plt.figure(figsize=fig_size)
+    ax = fig.add_axes([0.05, 0.05, 0.2, 0.9])
+
+    norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+    cb = mpl.colorbar.ColorbarBase(
+        ax, cmap=mpl.colormaps[cmap],
+        norm=norm, orientation='vertical'
+    )
+    
+    cb.set_label(label, size=label_size)
+    cb.ax.tick_params(labelsize=tick_size)
+    cb.outline.set_visible(False)
+
+    plt.savefig(
+        out_file_path, format="svg", 
+        transparent=True, bbox_inches='tight'
+    )
 
 def save_2d_matrix(
-        mat : np.ndarray,
-        file_path : str
+    mat : np.ndarray,
+    file_path : str
 ):
     """
     saves a 2d matrix as a TSV file
