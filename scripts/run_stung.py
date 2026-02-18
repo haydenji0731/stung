@@ -64,6 +64,7 @@ def main():
             out_dir = wkdir
         )
         mat, n = bmbl.build_2d_matrix()
+    
         utils.save_2d_matrix(mat, os.path.join(wkdir, 'mmat.pre.tsv'))
 
         utils.plot_2d_matrix(

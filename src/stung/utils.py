@@ -62,11 +62,15 @@ def parse_protein_coding_genes(
         )
         if f.feature_type == "gene" and is_protein_coding(f):
             gene_name = f.attributes['gene_name'] if 'gene_name' in f.attributes else None
+            gene_id = f.attributes['ID'] if 'ID' in f.attributes else None
             
             if not gene_name:
                 print(f"warning : no gene name detected for feature {f}"); continue
+        
+            if not gene_id:
+                print(f"warning :  no ID detected for feature {f}"); continue
 
-            gene_order.append((gene_name, f.chr, f.start, f.end, f.strand, f))
+            gene_order.append((gene_id, gene_name, f.chr, f.start, f.end, f.strand, f))
     return gene_order, gan_db
 
 # plotting helper functions

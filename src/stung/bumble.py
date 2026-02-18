@@ -91,6 +91,7 @@ def write_blocks2file(
 class Gene:
     def __init__(
         self,
+        fid : str,
         name : str,
         chr : str,
         start : int,
@@ -100,6 +101,7 @@ class Gene:
         """
         A class representing a gene.
         """
+        self.fid = fid
         self.name = name
         self.chr = chr
         self.start = start
@@ -183,12 +185,13 @@ class Bumble:
         for hid, ann_fp in self.hindex.items():
             gene_order, _ = utl.parse_protein_coding_genes(ann_fp)
             self.gene_orders[hid] = [
-                Gene(
-                    name = x[0],
-                    chr = x[1],
-                    start = x[2],
-                    end = x[3],
-                    strand = x[4]
+                Gene( # start and end coords, 1-based, fully closed
+                    fid = x[0],
+                    name = x[1],
+                    chr = x[2],
+                    start = x[3],
+                    end = x[4],
+                    strand = x[5]
                 ) for x in gene_order
             ]
             self.gene_orders[hid].sort(key=lambda x: x.start)
@@ -197,15 +200,16 @@ class Bumble:
         y = self.gene_orders["h1"]
 
         # write out gene_orders
+
         fn = os.path.join(self.out_dir, 'h0_gene_order.csv')
         with open(fn, 'w') as fh:
             for i, gene in enumerate(x):
-                fh.write(f'{i},{gene.name}\n')
+                fh.write(f'{i},{gene.name},{gene.fid},{gene.start},{gene.end},{gene.strand}\n')
         
         fn = os.path.join(self.out_dir, 'h1_gene_order.csv')
         with open(fn, 'w') as fh:
             for i, gene in enumerate(y):
-                fh.write(f'{i},{gene.name}\n')
+                fh.write(f'{i},{gene.name},{gene.fid},{gene.start},{gene.end},{gene.strand}\n')
 
         n = max(len(x), len(y))
 
@@ -283,7 +287,7 @@ class Bumble:
 
         for i in range(ylim[0], ylim[1], 1): # row index
             g1 = y[i]
-
+            
             s1 = get_genomic_seq(
                 genome=self.genome,
                 chr=g1.chr,
@@ -402,9 +406,8 @@ def get_genomic_seq(
     if strand not in ['+', '-']:
         raise ValueError(f'unknown strand {strand}; must either be "+" or "-"')
     
-    # TODO: fix the coordinates
     if strand == '+':
-        s = genome[chr][start:end].seq.upper()
+        s = genome[chr][start - 1:end].seq.upper() # 0-based, half-closed, half-open
     else:
-        s = genome[chr][start:end].antisense.upper()
+        s = genome[chr][start - 1:end].antisense.upper() # 0-based, half-closed, half-open
     return s
