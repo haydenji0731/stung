@@ -99,7 +99,11 @@ def main():
             out_file_path = os.path.join(wkdir, 'full.post.png')
         )
 
-        utils.save_2d_matrix(bmbl.pident_mat, os.path.join(wkdir, 'pident.tsv'))
+        # NOTE: if not stung is detected in the first place, no pident_mat is constructed (i.e., pairwise alignment not executed)
+        if bmbl.pident_mat is None:
+            print(f"percent identity matrix not present; skipping the save() operation")
+        else:
+            utils.save_2d_matrix(bmbl.pident_mat, os.path.join(wkdir, 'pident.tsv'))
 
 if __name__ == "__main__":
     main()
