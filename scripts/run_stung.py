@@ -1,11 +1,5 @@
 #!/usr/bin/env python
 
-"""
-author : HJ Ji
-date : 09/29/25
-contact : hji20@jh.edu
-"""
-
 from stung import bumble, stung, utils
 import argparse
 import os

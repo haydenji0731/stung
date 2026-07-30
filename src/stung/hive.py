@@ -6,8 +6,8 @@ import os
 def dissect(
     mat : np.ndarray,
     n : int,
-    out_dir : str,
     stung_blck : bumble.Block,
+    end_pts: list[bumble.Point]
 ):
     """
     annotates various genomic rearrangements events including 
@@ -31,18 +31,37 @@ def dissect(
     # annotate same strand matches
     matches = set() # (x, y) coordinates
 
-    y = y_start
-    x = x_start
-    while y < y_end and x < x_end:
+    sorted_end_pts = sorted(end_pts)
+    y = sorted_end_pts[0].y
+    x = sorted_end_pts[0].x
+    while y <= y_end and x <= x_end:
         if mat[y][x] == 1:
             matches.add((x, y))
         else:
             break
         x += 1
         y += 1
+    y = sorted_end_pts[0].y
+    x = sorted_end_pts[0].x
+    while y >= y_start and x >= x_start:
+        if mat[y][x] == 1:
+            matches.add((x, y))
+        else:
+            break
+        x -= 1
+        y -= 1
     
-    y = y_end
-    x = x_end
+    y = sorted_end_pts[1].y
+    x = sorted_end_pts[1].x
+    while y <= y_end and x <= x_end:
+        if mat[y][x] == 1:
+            matches.add((x, y))
+        else:
+            break
+        x += 1
+        y += 1
+    y = sorted_end_pts[1].y
+    x = sorted_end_pts[1].x
     while y >= y_start and x >= x_start:
         if mat[y][x] == 1:
             matches.add((x, y))
@@ -51,26 +70,11 @@ def dissect(
         x -= 1
         y -= 1
 
-    matches = list(matches)
-    matches.sort(key = lambda xy : xy[0])
-
-    # annotate gaps (= where insertions occur)
-    x_gaps = []
-    y_gaps = []
-
-    prev_x, prev_y = matches[0]
-    for i in range(1, len(matches), 1):
-        x, y = matches[i]
-        if x - prev_x > 1:
-            # gap_start, gap_length
-            x_gaps.append((prev_x + 1, x - prev_x - 1))
-        if y - prev_y > 1:
-            y_gaps.append((prev_y + 1, y - prev_y - 1))
-        prev_x = x
-        prev_y = y
+    diag_matches = list(matches)
+    diag_matches.sort(key = lambda xy : xy[0])
     
     # annotate inverse diagonal matches (continuous)
-    inv_matches, _ = find_inverse_diagonals(
+    inv_matches = find_inverse_diagonals(
         mat = mat,
         x_start = x_start,
         x_end = x_end,
@@ -83,7 +87,7 @@ def dissect(
     # also annotates additional insertions based on row and col sums
     row_dups, row_matches, col_dups, col_matches, x_ins, y_ins = find_duplications(
         mat = mat,
-        diag_matches = matches,
+        diag_matches = diag_matches,
         x_start = x_start,
         x_end = x_end,
         y_start = y_start,
@@ -94,17 +98,17 @@ def dissect(
     row_anns = [[] for _ in range(n)]
     col_anns = [[] for _ in range(n)]
 
-    for start_i, l in x_gaps:
-        for i in range(l):
-            col_anns[start_i + i].append('INS')
+    for x, y in diag_matches:
+        col_anns[x].append(f'COLIN_MATCH:{y}')
+        row_anns[y].append(f'COLIN_MATCH:{x}')
     
-    for start_i, l in y_gaps:
-        for i in range(l):
-            row_anns[start_i + i].append('INS')
-    
-    for x, y in inv_matches:
-        col_anns[x].append(f'INV_BLCK:{y}')
-        row_anns[y].append(f'INV_BLCK:{x}')
+    for x, y, is_start, l in inv_matches: # inv diagonal
+        if is_start:
+            col_anns[x].append(f'INV_BLCK:{y};INV_BLCK_INFO:({x},{y})-({x + (l - 1)},{y - (l - 1)})')
+            row_anns[y].append(f'INV_BLCK:{x};INV_BLCK_INFO:({x},{y})-({x + (l - 1)},{y - (l - 1)})')
+        else:
+            col_anns[x].append(f'INV_BLCK:{y}')
+            row_anns[y].append(f'INV_BLCK:{x}')
     
     for y in row_dups:
         for x, is_inverse in row_dups[y]:
@@ -139,15 +143,9 @@ def dissect(
             row_anns[y].append('INS')
     for x, _ in x_ins:
         if 'INS' not in col_anns[x]:
-            row_anns[x].append('INS')
-        
-    # write results to file(s)
-    _, _ = write_ann2file(
-        out_dir = out_dir,
-        n = n,
-        row_anns = row_anns,
-        col_anns = col_anns
-    )
+            col_anns[x].append('INS')
+
+    return row_anns, col_anns
 
 def write_ann2file(
     out_dir : str,
@@ -206,8 +204,8 @@ def find_inverse_diagonals(
     """
     diag_mat = np.zeros((n, n))
 
-    for i in range(y_end - 1, y_start - 1, -1):
-        for j in range(x_start, x_end, 1):
+    for i in range(y_end, y_start - 1, -1):
+        for j in range(x_start, x_end + 1, 1):
             y, x = i, j
             ctr = 0
             while y >= y_start and x < x_end:
@@ -220,20 +218,20 @@ def find_inverse_diagonals(
             diag_mat[i][j] = ctr if ctr >= min_l else 0
     
     inv_matches = []
-    inv_diag_blocks = []
-    for i in range(y_end - 1, y_start - 1, -1):
-        for j in range(x_start, x_end, 1):
+    # inv_diag_blocks = []
+    for i in range(y_end, y_start - 1, -1):
+        for j in range(x_start, x_end + 1, 1):
             if diag_mat[i][j] > 0:
                 l = int(diag_mat[i][j])
                 for k in range(l):
-                    inv_matches.append((j + k, i - k))
+                    inv_matches.append((j + k, i - k, k == 0, l))
                     diag_mat[i - k][j + k] = 0
-                inv_diag_blocks.append(bumble.Block(
-                    start = bumble.Point(x = j, y = i),
-                    end = bumble.Point(x = j + l, y = i - l)
-                ))
+                # inv_diag_blocks.append(bumble.Block(
+                #     start = bumble.Point(x = j, y = i),
+                #     end = bumble.Point(x = j + l, y = i - l)
+                # ))
 
-    return inv_matches, inv_diag_blocks
+    return inv_matches
         
 def find_duplications(
     mat : np.ndarray,
@@ -273,7 +271,7 @@ def find_duplications(
     y_ins = []
     x_ins = []
     
-    for i in range(y_start, y_end, 1):
+    for i in range(y_start, y_end + 1, 1):
         curr_matches = np.where(mat[i] > 0)[0]
         if len(curr_matches) == 0:
             y_ins.append((i, 1))
@@ -293,7 +291,7 @@ def find_duplications(
             else:
                 row_matches[i].append((int(j), bool(mat[i][j] == 2)))
     
-    for j in range(x_start, x_end, 1):
+    for j in range(x_start, x_end + 1, 1):
         curr_matches = np.where(mat[:, j] > 0)[0]
         if len(curr_matches) == 0:
             x_ins.append((j, 1))

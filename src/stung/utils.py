@@ -9,7 +9,7 @@ import numpy as np
 
 EXPECTED_PLT_DIM=100
 
-def is_protein_coding(
+def is_protein_coding_cds(
     gene : gan.GFeature
 ) -> bool:
     """
@@ -28,6 +28,23 @@ def is_protein_coding(
             if child.feature_type == "CDS":
                 is_protein_coding = True
     return is_protein_coding
+
+def is_protein_coding_type(
+    gene : gan.GFeature
+) -> bool:
+    """
+    checks if a GFeature instance is a protein coding gene
+    based on whether or not the gene has a CDS record associated with it
+    args :
+        gene (gan.GFeature) : input gene as GFeature instance
+    returns :
+        is_protein_coding : True if the input gene is protein coding
+    raises :
+        None
+    """
+    if 'gene_biotype' in gene.attributes:
+        return gene.attributes['gene_biotype'] == "protein_coding"
+    return False
 
 def parse_protein_coding_genes(
     file_path : str
@@ -60,7 +77,7 @@ def parse_protein_coding_genes(
         f = gan_db.get_feature(
             uid = uid
         )
-        if f.feature_type == "gene" and is_protein_coding(f):
+        if f.feature_type == "gene" and is_protein_coding_type(f):
             gene_name = f.attributes['gene_name'] if 'gene_name' in f.attributes else None
             gene_id = f.attributes['ID'] if 'ID' in f.attributes else None
             

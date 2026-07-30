@@ -178,6 +178,7 @@ def buzz(
     mat : np.ndarray,
     n : int,
     out_dir : str,
+    hive_pad : int = 15,
     verbose : bool = False
 ):
     """
@@ -252,13 +253,6 @@ def buzz(
         )
         stung_blcks.append(stung_blck)
 
-        hive.dissect(
-            mat = mat,
-            n = n,
-            out_dir = wkdir,
-            stung_blck = stung_blck,
-        )
-
     # update colin_blocks
     diag_mlen_mat_2 = compute_mlen(mat = mat, n = n)
     colin_blocks_2 = find_colinear_blocks(
@@ -274,5 +268,75 @@ def buzz(
         print(f'{n_collapsed_2} blocks were collapsed (post-alignment)')
 
     bumble.write_blocks2file(colin_blocks_2, os.path.join(out_dir, 'post_colin_blcks.tsv'))
+
+    stungs_2 = get_stungs(
+        colin_blocks = colin_blocks_2,
+        verbose = verbose
+    )
+
+    def _merge_anns(l1, l2, n):
+        if len(l1) != n:
+            raise ValueError(f'expected length {n} but got {len(l1)}')
+        if len(l2) != n:
+            raise ValueError(f'expected length {n} but got {len(l2)}')
+        merged = []
+        for i in range(n):
+            l1_priority = False
+            l2_priority = False
+
+            if any('DUP' in x for x in l1[i]):
+                union_ents = l1[i]
+                l1_priority = True
+
+            if any('DUP' in x for x in l2[i]):
+                if l1_priority:
+                    union_ents = set(l1[i]) | set(l2[i])
+                else:
+                    union_ents = l2[i]
+                    l2_priority = True
+
+            if not l1_priority and not l2_priority:
+                union_ents = set(l1[i]) | set(l2[i])
+
+            merged.append(list(union_ents))
+        return merged
+
+    glob_col_anns = None
+    glob_row_anns = None
+    for i, stung in enumerate(stungs_2):
+        ptA = bumble.Point(x = stung[0].x - 1, y = stung[0].y - 1)
+        ptB = stung[1]
+        sx = min(ptA.x, ptB.x)
+        ex = max(ptA.x, ptB.x)
+        sy = min(ptA.y, ptB.y)
+        ey = max(ptA.y, ptB.y)
+        stung_blck = bumble.Block(
+            start = bumble.Point(x = sx - hive_pad, y = sy - hive_pad),
+            end = bumble.Point(x = ex + hive_pad, y = ey + hive_pad)
+        )
+        end_pts = [ptA, ptB]
+        curr_row_anns, curr_col_anns = hive.dissect(
+            mat = mat, n = n, stung_blck = stung_blck, end_pts = end_pts
+        )
+        if glob_col_anns is None:
+            glob_col_anns = curr_col_anns
+        else:
+            glob_col_anns = _merge_anns(glob_col_anns, curr_col_anns, n)
+        if glob_row_anns is None:
+            glob_row_anns = curr_row_anns
+        else:
+            glob_row_anns = _merge_anns(glob_row_anns, curr_row_anns, n)
     
+    # write genomic event annotations to files
+    if glob_row_anns is None:
+        glob_row_anns = [[] for _ in range(n)]
+    if glob_col_anns is None:
+        glob_col_anns = [[] for _ in range(n)]
+    _, _ = hive.write_ann2file(
+        out_dir = out_dir,
+        n = n,
+        row_anns = glob_row_anns,
+        col_anns = glob_col_anns
+    )
+
     return init_mat, stungs, stung_blcks
